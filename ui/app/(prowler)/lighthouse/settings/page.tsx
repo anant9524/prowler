@@ -9,45 +9,31 @@ import {
   ManagedLighthouseCallout,
 } from "@/components/lighthouse-v1";
 import { ContentLayout } from "@/components/shadcn/content-layout";
-import { isCloud } from "@/lib/shared/env";
 
 export const dynamic = "force-dynamic";
 
 export default async function LighthouseSettingsPage() {
-  if (true) // always use V2 config {
-    const [configurationsResult, providersResult] = await Promise.all([
-      getLighthouseV2Configurations(),
-      getLighthouseV2SupportedProviders(),
-    ]);
-
-    const providers = "data" in providersResult ? providersResult.data : [];
-    const error =
-      "error" in configurationsResult
-        ? configurationsResult.error
-        : "error" in providersResult
-          ? providersResult.error
-          : undefined;
-
-    return (
-      <ContentLayout title="Settings">
-        <LighthouseV2ConfigPage
-          configurations={
-            "data" in configurationsResult ? configurationsResult.data : []
-          }
-          providers={providers}
-          error={error}
-        />
-      </ContentLayout>
-    );
-  }
-
+  // ManagedLighthouseCallout removed — always render V2 config page
+  const [configurationsResult, providersResult] = await Promise.all([
+    getLighthouseV2Configurations(),
+    getLighthouseV2SupportedProviders(),
+  ]);
+  const providers = "data" in providersResult ? providersResult.data : [];
+  const error =
+    "error" in configurationsResult
+      ? configurationsResult.error
+      : "error" in providersResult
+        ? providersResult.error
+        : undefined;
   return (
     <ContentLayout title="Settings">
-      <ManagedLighthouseCallout />
-      <div className="h-8" aria-hidden="true" />
-      <LLMProvidersTable />
-      <div className="h-8" aria-hidden="true" />
-      <LighthouseSettings />
+      <LighthouseV2ConfigPage
+        configurations={
+          "data" in configurationsResult ? configurationsResult.data : []
+        }
+        providers={providers}
+        error={error}
+      />
     </ContentLayout>
   );
 }
