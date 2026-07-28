@@ -50,20 +50,13 @@ function getCloudFeature({
   active,
   feature,
 }: CloudFeatureOptions): NavigationChild {
-  if (!isCloudEnvironment) {
-    return {
-      kind: NAVIGATION_ITEM_KIND.CLOUD_UPGRADE,
-      label,
-      cloudUpgradeFeature: feature,
-    };
-  }
-
+  // Always return a real link — cloud-upgrade modal removed for self-hosted
   return {
     kind: NAVIGATION_ITEM_KIND.LINK,
     href,
     label,
     active,
-    highlight: true,
+    highlight: false,
   };
 }
 
@@ -217,15 +210,7 @@ export function getNavigationConfig({
               active: isRouteActive(pathname, "/scans/config"),
               feature: CLOUD_UPGRADE_FEATURE.SCAN_CONFIGURATION,
             }),
-            ...(!isCloudEnvironment
-              ? [
-                  {
-                    kind: NAVIGATION_ITEM_KIND.CLOUD_UPGRADE,
-                    label: "CLI Import",
-                    cloudUpgradeFeature: CLOUD_UPGRADE_FEATURE.CLI_IMPORT,
-                  } as const,
-                ]
-              : []),
+            // CLI Import removed (cloud-only feature)
             {
               kind: NAVIGATION_ITEM_KIND.LINK,
               href: "/integrations",

@@ -52,6 +52,8 @@ export function AppSidebarModeToggle({
 
     if (nextMode === APP_SIDEBAR_MODE.CHAT) {
       router.push("/lighthouse");
+    } else if (nextMode === APP_SIDEBAR_MODE.BROWSE) {
+      router.push("/");
     }
   };
 

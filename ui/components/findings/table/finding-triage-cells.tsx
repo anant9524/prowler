@@ -49,10 +49,7 @@ const getDisabledCopy = ({
   hasUpdateHandler: boolean;
   lockResolved?: boolean;
 }): string | undefined => {
-  if (triage.disabledReason === FINDING_TRIAGE_DISABLED_REASON.CLOUD_ONLY) {
-    return CLOUD_ONLY_TOOLTIP_COPY;
-  }
-
+  // CLOUD_ONLY gate removed — triage always enabled in self-hosted
   // Status-picker only: notes stay available on resolved findings.
   if (lockResolved && isTriageStatusLocked(triage.status)) {
     return FINDING_TRIAGE_RESOLVED_LOCKED_COPY;
@@ -82,9 +79,6 @@ export function FindingTriageStatusCell({
   triage?: FindingTriageSummary;
   onTriageUpdateAction?: FindingTriageUpdateHandler;
 }) {
-  const openCloudUpgrade = useCloudUpgradeStore(
-    (state) => state.openCloudUpgrade,
-  );
   const [optimisticStatus, setOptimisticStatus] = useState<{
     token: string;
     findingId: string;
@@ -170,31 +164,6 @@ export function FindingTriageStatusCell({
   });
   if (!disabledCopy) {
     return control;
-  }
-
-  if (triage.disabledReason === FINDING_TRIAGE_DISABLED_REASON.CLOUD_ONLY) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="relative flex">
-            {control}
-            <Button
-              type="button"
-              variant="bare"
-              size="link-xs"
-              aria-label="Change triage status - available in Prowler Cloud"
-              className="absolute inset-0 h-auto w-auto rounded-lg"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                openCloudUpgrade(CLOUD_UPGRADE_FEATURE.FINDING_TRIAGE);
-              }}
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{disabledCopy}</TooltipContent>
-      </Tooltip>
-    );
   }
 
   return (

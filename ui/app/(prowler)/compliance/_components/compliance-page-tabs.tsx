@@ -63,11 +63,7 @@ export const CompliancePageTabs = ({
           <TabsList>
             <TabsTrigger
               value={COMPLIANCE_TAB.CROSS_PROVIDER}
-              adornment={
-                !crossProviderEnabled ? (
-                  <Badge variant="cloud">Cloud</Badge>
-                ) : undefined
-              }
+              adornment={undefined}
             >
               Multiple Scans
             </TabsTrigger>

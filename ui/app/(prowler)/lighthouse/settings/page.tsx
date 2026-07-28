@@ -14,7 +14,7 @@ import { isCloud } from "@/lib/shared/env";
 export const dynamic = "force-dynamic";
 
 export default async function LighthouseSettingsPage() {
-  if (isCloud()) {
+  if (true) // always use V2 config {
     const [configurationsResult, providersResult] = await Promise.all([
       getLighthouseV2Configurations(),
       getLighthouseV2SupportedProviders(),

@@ -50,10 +50,6 @@ const toAlertsSearchParams = (
 };
 
 export default async function AlertsPage({ searchParams }: AlertsPageProps) {
-  if (!isCloud()) {
-    redirect("/");
-  }
-
   const resolvedSearchParams = await searchParams;
   const editAlertId = getParamValue(resolvedSearchParams, "edit");
   const [result, providersData, scansData, metadataInfoData, editResult] =
