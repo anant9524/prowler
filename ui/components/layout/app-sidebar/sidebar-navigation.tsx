@@ -113,23 +113,7 @@ function CloudUpgradeChild({
   item: NavigationCloudUpgrade;
   onSelect?: AppSidebarSelectionHandler;
 }) {
-  const openCloudUpgrade = useCloudUpgradeStore(
-    (state) => state.openCloudUpgrade,
-  );
-
-  return (
-    <NavigationButton
-      variant="subitem"
-      onClick={() => {
-        openCloudUpgrade(item.cloudUpgradeFeature, onSelect?.() ?? undefined);
-      }}
-    >
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      <Badge variant="cloud" size="sm">
-        Cloud
-      </Badge>
-    </NavigationButton>
-  );
+  return null;
 }
 
 function LinkChild({

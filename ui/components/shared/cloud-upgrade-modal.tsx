@@ -29,7 +29,7 @@ export const CloudUpgradeModal = () => {
     (state) => state.returnFocusElement,
   );
 
-  if (isCloud()) return null;
+  return null;
 
   const feature = activeFeature ?? retainedFeature;
   const content = CLOUD_UPGRADE_CONTENT[feature];

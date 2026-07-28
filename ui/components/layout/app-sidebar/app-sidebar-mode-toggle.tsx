@@ -46,21 +46,7 @@ export function AppSidebarModeToggle({
   const router = useRouter();
   const mode = useAppSidebarMode((state) => state.mode);
   const setMode = useAppSidebarMode((state) => state.setMode);
-  const openCloudUpgrade = useCloudUpgradeStore(
-    (state) => state.openCloudUpgrade,
-  );
-
   const selectMode = (nextMode: AppSidebarMode) => {
-    const isChatUpsell = nextMode === APP_SIDEBAR_MODE.CHAT && !chatEnabled;
-
-    if (isChatUpsell) {
-      openCloudUpgrade(
-        CLOUD_UPGRADE_FEATURE.LIGHTHOUSE_AI,
-        onSelect?.() ?? undefined,
-      );
-      return;
-    }
-
     setMode(nextMode);
     onSelect?.();
 
@@ -78,8 +64,7 @@ export function AppSidebarModeToggle({
       {MODES.map((item) => {
         const Icon = item.icon;
         const isActive = item.value === mode;
-        const isCloudUpsell =
-          item.value === APP_SIDEBAR_MODE.CHAT && !chatEnabled;
+        const isCloudUpsell = false;
         const button = (
           <NavigationButton
             key={item.value}
