@@ -257,29 +257,12 @@ export function FindingNoteModal({
             Cancel
           </Button>
           <span className="relative inline-flex">
-            {isCloudOnly && (
-              <span className="pointer-events-none absolute top-0 right-0 z-10 translate-x-1/3 -translate-y-1/2">
-                <Badge variant="cloud">Cloud</Badge>
-              </span>
-            )}
             <Button
               type={canSubmit ? "submit" : "button"}
               size="lg"
-              aria-label={
-                isCloudOnly ? "Save - available in Prowler Cloud" : undefined
-              }
-              disabled={!canSubmit && !isCloudOnly}
-              onClick={
-                isCloudOnly
-                  ? () => openCloudUpgrade(CLOUD_UPGRADE_FEATURE.FINDING_TRIAGE)
-                  : undefined
-              }
+              disabled={!canSubmit}
             >
-              {isSubmitting
-                ? "Saving..."
-                : canSubmit || isCloudOnly
-                  ? "Save"
-                  : "Unavailable"}
+              {isSubmitting ? "Saving..." : canSubmit ? "Save" : "Unavailable"}
             </Button>
           </span>
         </div>
