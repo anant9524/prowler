@@ -145,6 +145,18 @@ class JiraServerConfigSerializer(BaseValidateSerializer):
         default={},
     )
     projects = serializers.DictField(read_only=True)
+    # Writable dispatch defaults so tickets can be filed with a single click
+    # from the Findings table, no per-finding project/type selection.
+    default_project_key = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    default_issue_type = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    # Raw Jira `fields` object merged into every created issue, so
+    # project-mandatory fields (assignee, custom "Pod"/"Task Type"/etc.) can be
+    # satisfied. Supplied verbatim in the shape Jira's create API expects.
+    extra_fields = serializers.DictField(required=False, default=dict)
 
     class Meta:
         resource_name = "integrations"
@@ -309,10 +321,26 @@ class IntegrationCredentialField(serializers.JSONField):
             {
                 "type": "object",
                 "title": "Jira Server",
-                "description": "Jira Server integration does not accept any configuration in the payload. Leave "
-                "it as an empty JSON object (`{}`).",
-                "properties": {},
-                "additionalProperties": False,
+                "description": "Optional dispatch defaults for the Jira Server integration so findings can be "
+                "filed with a single click. All fields are optional and can be set after the "
+                "connection has been tested (which populates the available projects and issue types).",
+                "properties": {
+                    "default_project_key": {
+                        "type": "string",
+                        "description": "Project key that findings are filed into by default (e.g. 'INS').",
+                    },
+                    "default_issue_type": {
+                        "type": "string",
+                        "description": "Issue type used by default for created issues (e.g. 'Task').",
+                    },
+                    "extra_fields": {
+                        "type": "object",
+                        "description": "Raw Jira `fields` object merged into every created issue, to satisfy "
+                        "project-mandatory fields Prowler cannot infer. Supplied verbatim in the shape "
+                        "Jira's create API expects, e.g. "
+                        '{"assignee": {"name": "user"}, "customfield_10111": {"value": "X"}}.',
+                    },
+                },
             },
         ]
     }

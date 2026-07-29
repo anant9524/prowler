@@ -255,7 +255,7 @@ export const JiraServerIntegrationsManager = ({
         onOpenChange={setIsModalOpen}
         title={
           editingIntegration
-            ? "Update Jira Server Credentials"
+            ? "Configure Jira Server Integration"
             : "Add Jira Server Integration"
         }
       >

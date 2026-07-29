@@ -705,4 +705,7 @@ def initialize_prowler_integration(integration: Integration) -> Jira | JiraServe
         # remote API (no cloud-ID lookup to perform), so there's no auth error
         # that can surface here — only from an actual request (get_projects,
         # send_finding, etc.), which callers already handle.
-        return JiraServer(**integration.credentials)
+        return JiraServer(
+            **integration.credentials,
+            extra_fields=integration.configuration.get("extra_fields") or {},
+        )

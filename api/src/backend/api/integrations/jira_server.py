@@ -179,13 +179,24 @@ def _build_description(
 class JiraServer:
     """Client for a self-hosted Jira Server / Data Center instance."""
 
-    def __init__(self, base_url: str, personal_access_token: str):
+    def __init__(
+        self,
+        base_url: str,
+        personal_access_token: str,
+        extra_fields: Optional[dict] = None,
+    ):
         if not base_url or not personal_access_token:
             raise JiraServerError(
                 "Both base_url and personal_access_token are required."
             )
         self._base_url = base_url.rstrip("/") + "/"
         self._token = personal_access_token
+        # Raw Jira `fields` object merged into every created issue. Lets a
+        # self-hosted instance satisfy project-mandatory fields (assignee,
+        # custom "Pod"/"Task Type"/etc.) that Prowler can't infer. Supplied
+        # verbatim in the exact shape Jira's create API expects, e.g.
+        # {"assignee": {"name": "user"}, "customfield_10111": {"value": "X"}}.
+        self._extra_fields = extra_fields or {}
 
     def _url(self, path: str) -> str:
         return urljoin(self._base_url, path.lstrip("/"))
@@ -353,14 +364,16 @@ class JiraServer:
             compliance=compliance,
         )
 
-        payload = {
-            "fields": {
-                "project": {"key": project_key},
-                "summary": summary,
-                "description": description,
-                "issuetype": {"name": issue_type},
-            }
+        fields = {
+            "project": {"key": project_key},
+            "summary": summary,
+            "description": description,
+            "issuetype": {"name": issue_type},
         }
+        # User-supplied extra fields win, so they can populate project-mandatory
+        # fields (and even override the defaults above if deliberately set).
+        fields.update(self._extra_fields)
+        payload = {"fields": fields}
 
         try:
             response = requests.post(

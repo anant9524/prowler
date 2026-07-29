@@ -2,7 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Send } from "lucide-react";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -151,6 +156,31 @@ const SendToJiraModalContent = ({
   const hasConnectedIntegration = integrations.some(
     (integration) => integration.attributes.connected === true,
   );
+
+  // Jira Server integrations can carry dispatch defaults (default project +
+  // issue type). When present, findings are filed with one click — no
+  // per-finding project/issue-type selection.
+  const serverDefaultProject =
+    selectedIntegrationData?.attributes.integration_type === "jira_server"
+      ? (selectedIntegrationData.attributes.configuration
+          .default_project_key ?? "")
+      : "";
+  const serverDefaultIssueType =
+    selectedIntegrationData?.attributes.integration_type === "jira_server"
+      ? (selectedIntegrationData.attributes.configuration
+          .default_issue_type ?? "")
+      : "";
+  const useServerDefaults = !!serverDefaultProject && !!serverDefaultIssueType;
+
+  useEffect(() => {
+    if (useServerDefaults) {
+      form.setValue("project", serverDefaultProject, { shouldValidate: true });
+      form.setValue("issueType", serverDefaultIssueType, {
+        shouldValidate: true,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useServerDefaults, serverDefaultProject, serverDefaultIssueType]);
 
   useMountEffect(() => {
     let active = true;
@@ -387,8 +417,18 @@ const SendToJiraModalContent = ({
             />
           )}
 
+          {!isFetchingIntegrations && selectedIntegration && useServerDefaults && (
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
+              This integration files issues into{" "}
+              <span className="font-medium">{serverDefaultProject}</span> as{" "}
+              <span className="font-medium">{serverDefaultIssueType}</span>. Change
+              the defaults from the Jira Server integration settings.
+            </div>
+          )}
+
           {!isFetchingIntegrations &&
             selectedIntegration &&
+            !useServerDefaults &&
             projectEntries.length > 0 && (
               <FormField
                 control={form.control}
@@ -425,7 +465,7 @@ const SendToJiraModalContent = ({
               />
             )}
 
-          {selectedProject && (
+          {selectedProject && !useServerDefaults && (
             <FormField
               control={form.control}
               name="issueType"

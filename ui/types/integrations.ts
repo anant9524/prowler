@@ -93,6 +93,10 @@ export interface IntegrationProps {
       issue_types?: { [key: string]: string[] };
       // Jira Server specific configuration
       base_url?: string;
+      // Jira Server dispatch defaults (one-click send from Findings)
+      default_project_key?: string;
+      default_issue_type?: string;
+      extra_fields?: Record<string, unknown>;
       [key: string]: unknown;
     };
     url?: string;
@@ -401,6 +405,28 @@ export const editJiraServerIntegrationFormSchema = z.object({
     .string()
     .min(1, "Personal access token is required")
     .optional(),
+  // Dispatch defaults (editable once the connection has been tested)
+  default_project_key: z.string().optional(),
+  default_issue_type: z.string().optional(),
+  extra_fields_json: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (!value || value.trim() === "") return true;
+        try {
+          const parsed = JSON.parse(value);
+          return (
+            typeof parsed === "object" &&
+            parsed !== null &&
+            !Array.isArray(parsed)
+          );
+        } catch {
+          return false;
+        }
+      },
+      { error: "Must be a valid JSON object, e.g. {\"customfield_10111\": {\"value\": \"X\"}}" },
+    ),
 });
 
 export type CreateValues = z.infer<typeof jiraIntegrationFormSchema>;

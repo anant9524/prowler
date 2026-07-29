@@ -2917,22 +2917,15 @@ class BaseWriteIntegrationSerializer(BaseWriteSerializer):
                         "providers": "Relationship field is not accepted. This integration applies to all providers."
                     }
                 )
-            if configuration:
-                raise serializers.ValidationError(
-                    {
-                        "configuration": "This integration does not support custom configuration."
-                    }
-                )
             config_serializer = JiraServerConfigSerializer
-            # Create non-editable configuration for Jira Server integration
-            # issue_types will be populated per project when connection is tested
-            configuration.update(
-                {
-                    "projects": {},
-                    "issue_types": {},
-                    "base_url": credentials.get("base_url"),
-                }
-            )
+            # Unlike Jira Cloud, Jira Server accepts custom configuration: the
+            # dispatch defaults (default_project_key / default_issue_type /
+            # extra_fields) so findings can be filed with one click. projects
+            # and issue_types are populated by the connection test — use
+            # setdefault so a later defaults/extra_fields edit never wipes them.
+            configuration.setdefault("projects", {})
+            configuration.setdefault("issue_types", {})
+            configuration["base_url"] = credentials.get("base_url")
             credentials_serializers = [JiraServerCredentialSerializer]
         else:
             raise serializers.ValidationError(
@@ -3097,11 +3090,22 @@ class IntegrationUpdateSerializer(
     def validate(self, attrs):
         integration_type = self.instance.integration_type
         providers = attrs.get("providers")
-        if integration_type in (
-            Integration.IntegrationChoices.JIRA,
-            Integration.IntegrationChoices.JIRA_SERVER,
-        ):
+        if integration_type == Integration.IntegrationChoices.JIRA:
             configuration = attrs.get("configuration", {})
+        elif integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+            # Jira Server allows editing dispatch defaults, so a submitted
+            # configuration must be merged over the existing one — otherwise
+            # setting defaults would drop the connection-test-populated
+            # projects/issue_types (and vice versa).
+            incoming_configuration = attrs.get("configuration")
+            if incoming_configuration is not None:
+                configuration = {
+                    **self.instance.configuration,
+                    **incoming_configuration,
+                }
+                attrs["configuration"] = configuration
+            else:
+                configuration = {}
         else:
             configuration = attrs.get("configuration") or self.instance.configuration
         credentials = attrs.get("credentials") or self.instance.credentials
