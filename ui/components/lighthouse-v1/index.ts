@@ -4,5 +4,4 @@ export * from "./lighthouse-settings";
 export * from "./llm-provider-registry";
 export * from "./llm-provider-utils";
 export * from "./llm-providers-table";
-export * from "./managed-lighthouse-callout";
 export * from "./select-model";

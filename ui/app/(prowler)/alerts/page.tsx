@@ -50,6 +50,12 @@ const toAlertsSearchParams = (
 };
 
 export default async function AlertsPage({ searchParams }: AlertsPageProps) {
+  // The Alert Rules API (/alerts/rules and friends) doesn't exist in the OSS
+  // backend — Alerts is a Prowler Cloud-only feature.
+  if (!isCloud()) {
+    redirect("/");
+  }
+
   const resolvedSearchParams = await searchParams;
   const editAlertId = getParamValue(resolvedSearchParams, "edit");
   const [result, providersData, scansData, metadataInfoData, editResult] =

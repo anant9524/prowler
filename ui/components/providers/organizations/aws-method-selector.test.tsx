@@ -2,18 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useCloudUpgradeStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
-
 import { AwsMethodSelector } from "./aws-method-selector";
 
 describe("AwsMethodSelector", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
-    useCloudUpgradeStore.getState().closeCloudUpgrade();
   });
 
-  it("opens the AWS Organizations upgrade in Local Server", async () => {
+  it("disables AWS Organizations with a Cloud badge in Local Server", async () => {
     // Given
     vi.stubEnv("UI_CLOUD_ENABLED", "false");
     const user = userEvent.setup();
@@ -26,18 +22,15 @@ describe("AwsMethodSelector", () => {
         onSelectOrganizations={onSelectOrganizations}
       />,
     );
+    const option = screen.getByRole("radio", {
+      name: /add multiple accounts with aws organizations/i,
+    });
 
     // Then
-    await user.click(
-      screen.getByRole("radio", {
-        name: /add multiple accounts with aws organizations/i,
-      }),
-    );
-
-    expect(onSelectOrganizations).not.toHaveBeenCalled();
+    expect(option).toBeDisabled();
     expect(screen.getByText("Cloud")).toBeVisible();
-    expect(useCloudUpgradeStore.getState().activeFeature).toBe(
-      CLOUD_UPGRADE_FEATURE.AWS_ORGANIZATIONS,
-    );
+
+    await user.click(option);
+    expect(onSelectOrganizations).not.toHaveBeenCalled();
   });
 });

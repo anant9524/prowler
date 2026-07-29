@@ -7,7 +7,6 @@ import {
 
 // Const map keeps the union narrow so `useDriverTour` can validate step keys.
 export const VIEW_COMPLIANCE_TOUR_TARGETS = {
-  TABS: "tabs",
   FRAMEWORKS: "frameworks",
   SEARCH: "search",
 } as const;
@@ -17,7 +16,9 @@ export type ViewComplianceTourTarget =
 
 export const viewComplianceTour = defineTour<ViewComplianceTourTarget>({
   id: "view-compliance",
-  version: 2,
+  // v3: dropped the "tabs" step — the Multiple Scans tab it anchored to was
+  // removed for self-hosted (cloud-only cross-provider compliance).
+  version: 3,
   coversFiles: [
     "ui/app/(prowler)/compliance/**",
     "ui/components/compliance/**",
@@ -27,14 +28,6 @@ export const viewComplianceTour = defineTour<ViewComplianceTourTarget>({
       title: "Check your compliance",
       description:
         "Compliance maps your findings to frameworks like CIS so you can see where you stand against each standard.",
-    },
-    {
-      target: "tabs",
-      side: TOUR_STEP_SIDES.BOTTOM,
-      align: TOUR_STEP_ALIGNMENTS.START,
-      title: "Choose how to combine scans",
-      description:
-        "Multiple Scans combines results across provider types or across accounts of the same provider type. Single Scan reviews one scan at a time.",
     },
     {
       target: "search",

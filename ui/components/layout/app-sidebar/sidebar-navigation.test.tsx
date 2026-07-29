@@ -1,24 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FileText, Settings, ShieldCheck } from "lucide-react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
+import { describe, expect, it, vi } from "vitest";
 
 import { SidebarNavigation } from "./sidebar-navigation";
 import { NAVIGATION_ITEM_KIND, type NavigationSection } from "./types";
-
-const { openCloudUpgradeMock } = vi.hoisted(() => ({
-  openCloudUpgradeMock: vi.fn(),
-}));
-
-vi.mock("@/store", () => ({
-  useCloudUpgradeStore: (
-    selector: (state: {
-      openCloudUpgrade: typeof openCloudUpgradeMock;
-    }) => unknown,
-  ) => selector({ openCloudUpgrade: openCloudUpgradeMock }),
-}));
 
 const sections: NavigationSection[] = [
   {
@@ -47,11 +33,6 @@ const sections: NavigationSection[] = [
             href: "/providers",
             label: "Providers",
             active: true,
-          },
-          {
-            kind: NAVIGATION_ITEM_KIND.CLOUD_UPGRADE,
-            label: "Alerts",
-            cloudUpgradeFeature: CLOUD_UPGRADE_FEATURE.ALERTS,
           },
         ],
       },
@@ -91,10 +72,6 @@ function setProviderActive(active: boolean): NavigationSection[] {
 }
 
 describe("SidebarNavigation", () => {
-  beforeEach(() => {
-    openCloudUpgradeMock.mockClear();
-  });
-
   it("renders grouped semantic navigation with accessible active destinations", () => {
     // Given / When
     render(<SidebarNavigation sections={sections} />);
@@ -168,22 +145,13 @@ describe("SidebarNavigation", () => {
     ).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("marks external links and opens contextual Cloud upgrades", async () => {
+  it("marks external links appropriately", () => {
     // Given
-    const user = userEvent.setup();
     const returnFocusElement = document.createElement("button");
     const onSelect = vi.fn(() => returnFocusElement);
     render(<SidebarNavigation sections={sections} onSelect={onSelect} />);
 
-    // When
-    await user.click(screen.getByRole("button", { name: /alerts/i }));
-
     // Then
-    expect(openCloudUpgradeMock).toHaveBeenCalledWith(
-      CLOUD_UPGRADE_FEATURE.ALERTS,
-      returnFocusElement,
-    );
-    expect(screen.getByText("Cloud")).toBeVisible();
     expect(screen.getByRole("link", { name: "Documentation" })).toHaveAttribute(
       "target",
       "_blank",

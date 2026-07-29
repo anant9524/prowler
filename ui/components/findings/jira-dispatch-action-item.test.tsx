@@ -7,8 +7,7 @@ import {
   ActionDropdownItem,
 } from "@/components/shadcn/dropdown";
 import { createJiraTargetSelection } from "@/lib/jira-dispatch-selection";
-import { useCloudUpgradeStore, useJiraDispatchStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
+import { useJiraDispatchStore } from "@/store";
 import {
   JIRA_DISPATCH_TARGET,
   type JiraDispatchTarget,
@@ -39,7 +38,6 @@ const renderAction = (targetIds: string[], targetType: JiraDispatchTarget) => {
 describe("JiraDispatchActionItem", () => {
   beforeEach(() => {
     isGroupedJiraDispatchEnabledMock.mockReturnValue(false);
-    useCloudUpgradeStore.getState().closeCloudUpgrade();
     useJiraDispatchStore.getState().closeJiraDispatch();
   });
 
@@ -56,10 +54,9 @@ describe("JiraDispatchActionItem", () => {
     expect(useJiraDispatchStore.getState().activePayload).toMatchObject({
       selection: { targetId: "finding-1" },
     });
-    expect(useCloudUpgradeStore.getState().activeFeature).toBeNull();
   });
 
-  it("shows Cloud tooltip and opens upgrade for grouped dispatch", async () => {
+  it("disables grouped dispatch with a Cloud tooltip and does nothing on click", async () => {
     // Given
     const user = userEvent.setup();
     renderAction(["check-1"], JIRA_DISPATCH_TARGET.CHECK_ID);
@@ -81,9 +78,6 @@ describe("JiraDispatchActionItem", () => {
     await user.click(jiraAction);
 
     // Then
-    expect(useCloudUpgradeStore.getState().activeFeature).toBe(
-      CLOUD_UPGRADE_FEATURE.JIRA_DISPATCH,
-    );
     expect(useJiraDispatchStore.getState().activePayload).toBeNull();
   });
 

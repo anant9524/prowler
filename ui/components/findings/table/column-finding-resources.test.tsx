@@ -180,35 +180,8 @@ vi.mock("./notification-indicator", () => ({
 
 import { useJiraDispatchStore } from "@/store/jira-dispatch/store";
 import type { FindingResourceRow } from "@/types";
-import {
-  FINDING_TRIAGE_DISABLED_REASON,
-  FINDING_TRIAGE_STATUS,
-  type FindingTriageSummary,
-} from "@/types/findings-triage";
 
 import { getColumnFindingResources } from "./column-finding-resources";
-import {
-  CLOUD_ONLY_TOOLTIP_COPY,
-  EDITING_UNAVAILABLE_COPY,
-} from "./finding-triage-cells";
-
-function makeTriageSummary(
-  overrides?: Partial<FindingTriageSummary>,
-): FindingTriageSummary {
-  return {
-    findingId: "finding-1",
-    findingUid: "prowler-finding-uid-1",
-    triageId: "triage-1",
-    notesCount: 0,
-    status: FINDING_TRIAGE_STATUS.UNDER_REVIEW,
-    label: "Under Review",
-    hasVisibleNote: false,
-    isMuted: false,
-    canEdit: true,
-    billingHref: "https://prowler.com/pricing",
-    ...overrides,
-  };
-}
 
 function makeResource(
   overrides?: Partial<FindingResourceRow>,
@@ -245,39 +218,6 @@ function getColumnIds(columns: ReturnType<typeof getColumnFindingResources>) {
   );
 }
 
-function renderResourceActionsCell({
-  resource = makeResource(),
-  onTriageUpdateAction,
-  onTriageNoteLoadAction,
-}: {
-  resource?: FindingResourceRow;
-  onTriageUpdateAction?: Parameters<
-    typeof getColumnFindingResources
-  >[0]["onTriageUpdateAction"];
-  onTriageNoteLoadAction?: Parameters<
-    typeof getColumnFindingResources
-  >[0]["onTriageNoteLoadAction"];
-} = {}) {
-  const columns = getColumnFindingResources({
-    rowSelection: {},
-    selectableRowCount: 1,
-    onTriageUpdateAction,
-    onTriageNoteLoadAction,
-  });
-
-  const actionsColumn = columns.find(
-    (col) => (col as { id?: string }).id === "actions",
-  );
-  if (!actionsColumn?.cell) {
-    throw new Error("actions column not found");
-  }
-  const CellComponent = actionsColumn.cell as (props: {
-    row: { original: FindingResourceRow };
-  }) => ReactNode;
-
-  render(<div>{CellComponent({ row: { original: resource } })}</div>);
-}
-
 describe("column-finding-resources", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -285,7 +225,7 @@ describe("column-finding-resources", () => {
     useJiraDispatchStore.getState().closeJiraDispatch();
   });
 
-  it("should render actions as the last visible column after Triage without Notes", () => {
+  it("should render actions as the last visible column without a Triage or Notes column", () => {
     // Given
     const columns = getColumnFindingResources({
       rowSelection: {},
@@ -296,183 +236,13 @@ describe("column-finding-resources", () => {
     const columnIds = getColumnIds(columns);
 
     // Then
-    expect(columnIds.slice(-2)).toEqual(["triage", "actions"]);
+    expect(columnIds.at(-1)).toEqual("actions");
     expect(columnIds).not.toContain("status");
+    expect(columnIds).not.toContain("triage");
     expect(columnIds).not.toContain("notes");
     expect(
       (columns.at(-1) as { id?: string; size?: number } | undefined)?.size,
     ).toBe(56);
-  });
-
-  it("should render Open note in resource actions without exposing note preview metadata", () => {
-    // Given
-    renderResourceActionsCell({
-      resource: makeResource({
-        triage: makeTriageSummary({ hasVisibleNote: true }),
-      }),
-      onTriageUpdateAction: vi.fn(),
-      onTriageNoteLoadAction: vi.fn(),
-    });
-
-    // Then
-    expect(screen.getByRole("button", { name: "Open note" })).toBeEnabled();
-    expect(screen.queryByText("Sensitive note body")).not.toBeInTheDocument();
-    expect(screen.queryByText(/author/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/timestamp/i)).not.toBeInTheDocument();
-  });
-
-  it("should disable Add Triage Note when no update handler is wired", () => {
-    // Given
-    renderResourceActionsCell({
-      resource: makeResource({
-        triage: makeTriageSummary({ hasVisibleNote: false }),
-      }),
-    });
-
-    // Then
-    expect(
-      screen.getByRole("button", { name: "Add Triage Note" }),
-    ).toBeDisabled();
-  });
-
-  it("should enable Add Triage Note when an update handler is wired", () => {
-    // Given
-    renderResourceActionsCell({
-      resource: makeResource({
-        triage: makeTriageSummary({ hasVisibleNote: false }),
-      }),
-      onTriageUpdateAction: vi.fn(),
-    });
-
-    // Then
-    expect(
-      screen.getByRole("button", { name: "Add Triage Note" }),
-    ).toBeEnabled();
-  });
-
-  it("should enable Add Triage Note for Cloud-only rows so users can open the billing upsell modal", () => {
-    // Given
-    renderResourceActionsCell({
-      resource: makeResource({
-        triage: makeTriageSummary({
-          canEdit: false,
-          hasVisibleNote: false,
-          disabledReason: FINDING_TRIAGE_DISABLED_REASON.CLOUD_ONLY,
-        }),
-      }),
-    });
-
-    // Then
-    expect(
-      screen.getByRole("button", { name: "Add Triage Note" }),
-    ).toBeEnabled();
-  });
-
-  it("should disable editable triage control when no update handler is wired", () => {
-    // Given
-    const columns = getColumnFindingResources({
-      rowSelection: {},
-      selectableRowCount: 1,
-    });
-    const triageColumn = columns.find(
-      (col) => (col as { id?: string }).id === "triage",
-    );
-    if (!triageColumn?.cell) {
-      throw new Error("triage column not found");
-    }
-    const CellComponent = triageColumn.cell as (props: {
-      row: { original: FindingResourceRow };
-    }) => ReactNode;
-
-    // When
-    render(
-      <div>
-        {CellComponent({
-          row: {
-            original: makeResource({
-              triage: makeTriageSummary({ canEdit: true }),
-            }),
-          },
-        })}
-      </div>,
-    );
-
-    // Then
-    expect(
-      screen.getByRole("button", { name: "Triage status" }),
-    ).toBeDisabled();
-    expect(screen.getByText(EDITING_UNAVAILABLE_COPY)).toBeInTheDocument();
-  });
-
-  it("should keep the compact Triage label on resource cells for headerless nested rows", () => {
-    // Given
-    const columns = getColumnFindingResources({
-      rowSelection: {},
-      selectableRowCount: 1,
-    });
-    const triageColumn = columns.find(
-      (col) => (col as { id?: string }).id === "triage",
-    );
-    if (!triageColumn?.cell) {
-      throw new Error("triage column not found");
-    }
-    const CellComponent = triageColumn.cell as (props: {
-      row: { original: FindingResourceRow };
-    }) => ReactNode;
-
-    // When
-    render(
-      <div>
-        {CellComponent({
-          row: {
-            original: makeResource({ triage: makeTriageSummary() }),
-          },
-        })}
-      </div>,
-    );
-
-    // Then — expanded finding-group rows render without a header row, so the
-    // cell itself must carry the label, like Service/Region/Last seen do.
-    expect(screen.getByText("Triage")).toBeInTheDocument();
-  });
-
-  it("should disable non-paying Cloud triage control with only-in-Cloud tooltip copy", () => {
-    // Given
-    const columns = getColumnFindingResources({
-      rowSelection: {},
-      selectableRowCount: 1,
-    });
-    const triageColumn = columns.find(
-      (col) => (col as { id?: string }).id === "triage",
-    );
-    if (!triageColumn?.cell) {
-      throw new Error("triage column not found");
-    }
-    const CellComponent = triageColumn.cell as (props: {
-      row: { original: FindingResourceRow };
-    }) => ReactNode;
-
-    // When
-    render(
-      <div>
-        {CellComponent({
-          row: {
-            original: makeResource({
-              triage: makeTriageSummary({
-                canEdit: false,
-                disabledReason: FINDING_TRIAGE_DISABLED_REASON.CLOUD_ONLY,
-              }),
-            }),
-          },
-        })}
-      </div>,
-    );
-
-    // Then
-    expect(
-      screen.getByRole("button", { name: "Triage status" }),
-    ).toBeDisabled();
-    expect(screen.getByText(CLOUD_ONLY_TOOLTIP_COPY)).toBeInTheDocument();
   });
 
   it("should open Jira dispatch with the finding UUID directly", async () => {

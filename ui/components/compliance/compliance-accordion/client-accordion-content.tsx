@@ -4,10 +4,6 @@ import { AlertTriangle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 import {
-  loadLatestFindingTriageNote,
-  updateFindingTriage,
-} from "@/actions/findings";
-import {
   getStandaloneFindingColumns,
   SkeletonTableFindings,
 } from "@/components/findings/table";
@@ -17,9 +13,7 @@ import { DataTable } from "@/components/shadcn/table";
 import { FINDINGS_DEFAULT_SORT, MUTED_FILTER } from "@/lib";
 import { INVALID_CONFIG_NOTE } from "@/lib/compliance/commons";
 import { getComplianceMapper } from "@/lib/compliance/compliance-mapper";
-import { shouldRefreshAfterTriageUpdate } from "@/lib/finding-triage";
 import { CheckProviderTypesMap, Requirement } from "@/types/compliance";
-import type { UpdateFindingTriageInput } from "@/types/findings-triage";
 
 import { ChecksWithProviders } from "./checks-with-providers";
 import { useRequirementFindings } from "./use-requirement-findings";
@@ -59,39 +53,20 @@ export const ClientAccordionContent = ({
   const checks = requirement.check_ids || [];
   const resolvedScanIds = scanIds ?? (scanId ? [scanId] : []);
 
-  const {
-    findings,
-    expandedFindings,
-    isLoading,
-    error,
-    patchTriageUpdate,
-    reload,
-  } = useRequirementFindings({
-    enabled:
-      !disableFindings &&
-      checks.length > 0 &&
-      requirement.status !== "No findings",
-    checkIds: checks,
-    scanIds: resolvedScanIds,
-    pageNumber,
-    pageSize,
-    sort,
-    region,
-    mutedFilter,
-  });
-
-  const handleTriageUpdate = async (input: UpdateFindingTriageInput) => {
-    await updateFindingTriage(input);
-
-    // Mutelist-shortcut statuses mute the finding server-side; refetch so the
-    // list honors the muted filter, matching the resource drawer behavior.
-    if (shouldRefreshAfterTriageUpdate(input)) {
-      reload();
-      return;
-    }
-
-    patchTriageUpdate(input);
-  };
+  const { findings, expandedFindings, isLoading, error, reload } =
+    useRequirementFindings({
+      enabled:
+        !disableFindings &&
+        checks.length > 0 &&
+        requirement.status !== "No findings",
+      checkIds: checks,
+      scanIds: resolvedScanIds,
+      pageNumber,
+      pageSize,
+      sort,
+      region,
+      mutedFilter,
+    });
 
   const renderDetails = () => {
     if (!complianceId) {
@@ -176,11 +151,7 @@ export const ClientAccordionContent = ({
           <h4 className="mb-2 text-sm font-medium">Findings</h4>
 
           <DataTable
-            columns={getStandaloneFindingColumns({
-              openFindingId,
-              onTriageUpdateAction: handleTriageUpdate,
-              onTriageNoteLoadAction: loadLatestFindingTriageNote,
-            })}
+            columns={getStandaloneFindingColumns({ openFindingId })}
             data={expandedFindings}
             metadata={findings?.meta}
             disableScroll={true}

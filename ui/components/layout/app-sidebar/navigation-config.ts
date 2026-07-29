@@ -16,8 +16,6 @@ import {
 
 import { LighthouseIcon } from "@/components/icons/Icons";
 import { isCloud } from "@/lib/shared/env";
-import type { CloudUpgradeFeature } from "@/types/cloud-upgrade";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
 import type { RolePermissionAttributes } from "@/types/users";
 
 import {
@@ -33,31 +31,6 @@ interface NavigationConfigOptions {
   apiDocsUrl?: string | null;
   cloudBillingEnabled?: boolean;
   permissions?: RolePermissionAttributes;
-}
-
-interface CloudFeatureOptions {
-  isCloudEnvironment: boolean;
-  href: string;
-  label: string;
-  active: boolean;
-  feature: CloudUpgradeFeature;
-}
-
-function getCloudFeature({
-  isCloudEnvironment,
-  href,
-  label,
-  active,
-  feature,
-}: CloudFeatureOptions): NavigationChild {
-  // Always return a real link — cloud-upgrade modal removed for self-hosted
-  return {
-    kind: NAVIGATION_ITEM_KIND.LINK,
-    href,
-    label,
-    active,
-    highlight: false,
-  };
 }
 
 function isRouteActive(pathname: string, href: string) {
@@ -190,26 +163,38 @@ export function getNavigationConfig({
               label: "Providers",
               active: isRouteActive(pathname, "/providers"),
             },
-            getCloudFeature({
-              isCloudEnvironment,
-              href: "/alerts",
-              label: "Alerts",
-              active: isRouteActive(pathname, "/alerts"),
-              feature: CLOUD_UPGRADE_FEATURE.ALERTS,
-            }),
+            // Alerts requires the Prowler Cloud-only Alert Rules API — no
+            // backend route exists in OSS, so the item is hidden entirely.
+            ...(isCloudEnvironment
+              ? [
+                  {
+                    kind: NAVIGATION_ITEM_KIND.LINK,
+                    href: "/alerts",
+                    label: "Alerts",
+                    active: isRouteActive(pathname, "/alerts"),
+                    highlight: true,
+                  } as const,
+                ]
+              : []),
             {
               kind: NAVIGATION_ITEM_KIND.LINK,
               href: "/mutelist",
               label: "Mutelist",
               active: pathname === "/mutelist",
             },
-            getCloudFeature({
-              isCloudEnvironment,
-              href: "/scans/config",
-              label: "Scans",
-              active: isRouteActive(pathname, "/scans/config"),
-              feature: CLOUD_UPGRADE_FEATURE.SCAN_CONFIGURATION,
-            }),
+            // Scan Configuration templates require the Prowler Cloud-only
+            // /scan-configurations API — no backend route exists in OSS.
+            ...(isCloudEnvironment
+              ? [
+                  {
+                    kind: NAVIGATION_ITEM_KIND.LINK,
+                    href: "/scans/config",
+                    label: "Scans",
+                    active: isRouteActive(pathname, "/scans/config"),
+                    highlight: true,
+                  } as const,
+                ]
+              : []),
             // CLI Import removed (cloud-only feature)
             {
               kind: NAVIGATION_ITEM_KIND.LINK,

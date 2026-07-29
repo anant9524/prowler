@@ -16,11 +16,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { getCompliancesOverview } from "@/actions/compliances";
-import {
-  loadLatestFindingTriageNote,
-  type ResourceDrawerFinding,
-  updateFindingTriage,
-} from "@/actions/findings";
+import type { ResourceDrawerFinding } from "@/actions/findings";
 import { JiraDispatchActionItem } from "@/components/findings/jira-dispatch-action-item";
 import { MarkdownContainer } from "@/components/findings/markdown-container";
 import { MuteFindingsModal } from "@/components/findings/mute-findings-modal";
@@ -71,7 +67,6 @@ import {
 } from "@/components/shared/query-code-editor";
 import { ResourceMetadataPanel } from "@/components/shared/resource-metadata-panel";
 import { getFailingForLabel, formatDuration } from "@/lib/date-utils";
-import { shouldRefreshAfterTriageUpdate } from "@/lib/finding-triage";
 import { buildJiraActionLabel } from "@/lib/jira-dispatch-action";
 import { createJiraDispatchPayload } from "@/lib/jira-dispatch-selection";
 import { buildFindingAnalysisPrompt } from "@/lib/lighthouse/prompts";
@@ -79,16 +74,10 @@ import { getRegionFlag } from "@/lib/region-flags";
 import { getRecommendationLinkLabel } from "@/lib/vulnerability-references";
 import type { ComplianceOverviewData } from "@/types/compliance";
 import type { FindingResourceRow } from "@/types/findings-table";
-import type { UpdateFindingTriageInput } from "@/types/findings-triage";
 import { JIRA_DISPATCH_TARGET } from "@/types/integrations";
 
 import { Muted } from "../../muted";
 import { DeltaIndicator } from "../delta-indicator";
-import {
-  FindingNoteActionItem,
-  FindingTriageStatusBadge,
-  FindingTriageStatusCell,
-} from "../finding-triage-cells";
 import { DeltaValues, NotificationIndicator } from "../notification-indicator";
 
 import { ResourceDetailSkeleton } from "./resource-detail-skeleton";
@@ -343,7 +332,6 @@ interface ResourceDetailDrawerContentProps {
   onNavigatePrev: () => void;
   onNavigateNext: () => void;
   onMuteComplete: () => void;
-  onTriageUpdate?: (input: UpdateFindingTriageInput) => void;
 }
 
 export function ResourceDetailDrawerContent({
@@ -359,7 +347,6 @@ export function ResourceDetailDrawerContent({
   onNavigatePrev,
   onNavigateNext,
   onMuteComplete,
-  onTriageUpdate,
 }: ResourceDetailDrawerContentProps) {
   const searchParams = useSearchParams();
   const [isMuteModalOpen, setIsMuteModalOpen] = useState(false);
@@ -433,7 +420,6 @@ export function ResourceDetailDrawerContent({
   const resourceUid = currentResource?.resourceUid ?? f?.resourceUid;
   const resourceService = currentResource?.service ?? f?.resourceService;
   const resourceRegion = currentResource?.region ?? f?.resourceRegion;
-  const findingTriage = f?.triage ?? currentResource?.triage;
   const resourceRegionLabel = resourceRegion || "-";
   const firstSeenAt = currentResource?.firstSeenAt ?? f?.firstSeenAt ?? null;
   const lastSeenAt = currentResource?.lastSeenAt ?? f?.updatedAt ?? null;
@@ -488,16 +474,6 @@ export function ResourceDetailDrawerContent({
     detail: overviewStatusExtended,
     risk: f?.risk || checkMeta.risk,
   });
-
-  const handleDrawerTriageUpdate = async (input: UpdateFindingTriageInput) => {
-    await updateFindingTriage(input);
-    if (shouldRefreshAfterTriageUpdate(input)) {
-      onMuteComplete();
-      return;
-    }
-
-    onTriageUpdate?.(input);
-  };
 
   const handleOpenCompliance = async (framework: string) => {
     if (!complianceScanId || resolvingFramework) {
@@ -569,7 +545,6 @@ export function ResourceDetailDrawerContent({
           {findingIsMuted !== undefined && (
             <Muted isMuted={findingIsMuted} mutedReason={findingMutedReason} />
           )}
-          {findingTriage && <FindingTriageStatusBadge triage={findingTriage} />}
         </div>
 
         {showCheckMetaContent ? (
@@ -839,19 +814,6 @@ export function ResourceDetailDrawerContent({
                     variant="bordered"
                     ariaLabel="Resource actions"
                   >
-                    {findingTriage && (
-                      <FindingNoteActionItem
-                        triage={findingTriage}
-                        findingContext={{
-                          title: checkMeta.checkTitle,
-                          resource: resourceName,
-                          provider: providerAlias,
-                          providerType,
-                        }}
-                        onTriageUpdateAction={handleDrawerTriageUpdate}
-                        onTriageNoteLoadAction={loadLatestFindingTriageNote}
-                      />
-                    )}
                     <ActionDropdownItem
                       icon={
                         f.isMuted ? (
@@ -1245,11 +1207,6 @@ export function ResourceDetailDrawerContent({
                           Time
                         </span>
                       </TableHead>
-                      <TableHead>
-                        <span className="text-text-neutral-secondary text-sm font-medium">
-                          Triage
-                        </span>
-                      </TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
@@ -1269,12 +1226,11 @@ export function ResourceDetailDrawerContent({
                               new Set(prev).add(finding.id),
                             )
                           }
-                          onTriageUpdateAction={handleDrawerTriageUpdate}
                         />
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-16 text-center">
+                        <TableCell colSpan={6} className="h-16 text-center">
                           <span className="text-text-neutral-tertiary text-sm">
                             {showSyntheticResourceHint
                               ? "No other findings are available for this IaC resource."
@@ -1460,9 +1416,6 @@ function OtherFindingsNavigationSkeletonRows() {
           <TableCell>
             <Skeleton className="h-5 w-20 rounded" />
           </TableCell>
-          <TableCell>
-            <Skeleton className="h-8 w-20 rounded-lg" />
-          </TableCell>
           <TableCell className={OTHER_FINDINGS_ACTION_CELL_CLASS}>
             <Skeleton className="h-5 w-5 rounded" />
           </TableCell>
@@ -1555,12 +1508,10 @@ function OtherFindingRow({
   finding,
   isOptimisticallyMuted,
   onMuted,
-  onTriageUpdateAction,
 }: {
   finding: ResourceDrawerFinding;
   isOptimisticallyMuted: boolean;
   onMuted: () => void;
-  onTriageUpdateAction: (input: UpdateFindingTriageInput) => Promise<void>;
 }) {
   const [isMuteModalOpen, setIsMuteModalOpen] = useState(false);
   const isMuted = finding.isMuted || isOptimisticallyMuted;
@@ -1619,28 +1570,9 @@ function OtherFindingRow({
         <TableCell>
           <DateWithTime dateTime={finding.updatedAt} />
         </TableCell>
-        <TableCell>
-          <FindingTriageStatusCell
-            triage={finding.triage}
-            onTriageUpdateAction={onTriageUpdateAction}
-          />
-        </TableCell>
         <TableCell className={OTHER_FINDINGS_ACTION_CELL_CLASS}>
           <div onClick={(e) => e.stopPropagation()}>
             <ActionDropdown ariaLabel="Finding actions">
-              {finding.triage && (
-                <FindingNoteActionItem
-                  triage={finding.triage}
-                  findingContext={{
-                    title: finding.checkTitle,
-                    resource: finding.resourceName,
-                    provider: finding.providerAlias,
-                    providerType: finding.providerType,
-                  }}
-                  onTriageUpdateAction={onTriageUpdateAction}
-                  onTriageNoteLoadAction={loadLatestFindingTriageNote}
-                />
-              )}
               <ActionDropdownItem
                 icon={
                   isMuted ? (

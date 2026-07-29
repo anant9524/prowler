@@ -50,10 +50,7 @@ export function AppSidebarContent({ onSelect }: AppSidebarContentProps) {
 
       <div className="shrink-0 space-y-3 px-3 pb-1">
         <LaunchScanAction onSelect={onSelect} />
-        <AppSidebarModeToggle
-          chatEnabled={isCloudEnvironment}
-          onSelect={onSelect}
-        />
+        <AppSidebarModeToggle onSelect={onSelect} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">

@@ -5,8 +5,6 @@ import { Box, Boxes } from "lucide-react";
 import { RadioCard } from "@/components/providers/radio-card";
 import { Badge } from "@/components/shadcn/badge/badge";
 import { isCloud } from "@/lib/shared/env";
-import { useCloudUpgradeStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
 
 interface AwsMethodSelectorProps {
   onSelectSingle: () => void;
@@ -18,9 +16,6 @@ export function AwsMethodSelector({
   onSelectOrganizations,
 }: AwsMethodSelectorProps) {
   const isCloudEnv = isCloud();
-  const openCloudUpgrade = useCloudUpgradeStore(
-    (state) => state.openCloudUpgrade,
-  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -37,11 +32,8 @@ export function AwsMethodSelector({
       <RadioCard
         icon={Boxes}
         title="Add Multiple Accounts With AWS Organizations"
-        onClick={() =>
-          isCloudEnv
-            ? onSelectOrganizations()
-            : openCloudUpgrade(CLOUD_UPGRADE_FEATURE.AWS_ORGANIZATIONS)
-        }
+        onClick={onSelectOrganizations}
+        disabled={!isCloudEnv}
       >
         {!isCloudEnv && <Badge variant="cloud">Cloud</Badge>}
       </RadioCard>

@@ -98,6 +98,8 @@ export default async function Findings({
     completedScans || [],
     providersData,
   ) as { [uid: string]: ScanEntity }[];
+  // Alerts requires the Prowler Cloud-only Alert Rules API, so the
+  // "Create Alert" entry point only renders when that backend is available.
   const alertsEnabled = isCloud();
 
   return (
@@ -120,17 +122,18 @@ export default async function Findings({
             uniqueGroups={uniqueGroups}
             checkOptions={checkOptions}
             trailingControls={
-              <SeedFromFindingsButton
-                filterBag={filters}
-                providers={providersData?.data || []}
-                scans={scanDetails}
-                uniqueRegions={uniqueRegions}
-                uniqueServices={uniqueServices}
-                uniqueResourceTypes={uniqueResourceTypes}
-                uniqueCategories={uniqueCategories}
-                uniqueGroups={uniqueGroups}
-                isCloudEnabled={alertsEnabled}
-              />
+              alertsEnabled ? (
+                <SeedFromFindingsButton
+                  filterBag={filters}
+                  providers={providersData?.data || []}
+                  scans={scanDetails}
+                  uniqueRegions={uniqueRegions}
+                  uniqueServices={uniqueServices}
+                  uniqueResourceTypes={uniqueResourceTypes}
+                  uniqueCategories={uniqueCategories}
+                  uniqueGroups={uniqueGroups}
+                />
+              ) : undefined
             }
           />
         </div>

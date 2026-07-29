@@ -1,11 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getScheduleFormDefaults } from "@/lib/schedules";
-import { useCloudUpgradeStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
 import type { ScheduleFormValues } from "@/types/schedules";
 
 import { ScanScheduleFields } from "./scan-schedule-fields";
@@ -60,9 +58,6 @@ function getHelperCopy(text: RegExp) {
 }
 
 describe("ScanScheduleFields", () => {
-  afterEach(() => {
-    useCloudUpgradeStore.getState().closeCloudUpgrade();
-  });
   it("updates the helper copy when the cadence changes to interval", async () => {
     // Given
     const user = userEvent.setup();
@@ -102,9 +97,8 @@ describe("ScanScheduleFields", () => {
     );
   });
 
-  it("opens advanced scheduling from the Cloud badge when controls are locked", async () => {
+  it("shows a Cloud badge next to Scan Schedule when controls are locked", () => {
     // Given
-    const user = userEvent.setup();
     render(
       <ScheduleFieldsHarness
         canUseAdvancedSchedule={false}
@@ -122,18 +116,6 @@ describe("ScanScheduleFields", () => {
     );
     expect(screen.getByText("Repeats").parentElement).not.toHaveTextContent(
       "Cloud",
-    );
-
-    // When
-    await user.click(
-      screen.getByRole("button", {
-        name: "Explore advanced scheduling in Prowler Cloud",
-      }),
-    );
-
-    // Then
-    expect(useCloudUpgradeStore.getState().activeFeature).toBe(
-      CLOUD_UPGRADE_FEATURE.ADVANCED_SCHEDULING,
     );
   });
 });

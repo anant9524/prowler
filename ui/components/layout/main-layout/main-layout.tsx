@@ -5,7 +5,6 @@ import { type ReactNode, Suspense } from "react";
 
 import { JiraDispatchModalHost } from "@/components/findings/jira-dispatch-modal-host";
 import { AppSidebar } from "@/components/layout/app-sidebar";
-import { CloudUpgradeModal } from "@/components/shared/cloud-upgrade-modal";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useStore } from "@/hooks/use-store";
 import { isLighthouseChatRoute } from "@/lib/lighthouse-routes";
@@ -38,7 +37,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   return (
     <div className="relative flex h-dvh items-center justify-center overflow-hidden">
       <AppSidebar />
-      <CloudUpgradeModal />
       <JiraDispatchModalHost />
       <main
         // @container: <main> is the reference for the app's (container-query)

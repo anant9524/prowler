@@ -18,14 +18,12 @@ import {
   TooltipTrigger,
 } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
-import { useCloudUpgradeStore } from "@/store";
 
 import {
   type AppSidebarSelectionHandler,
   NAVIGATION_ITEM_KIND,
   type NavigationChild,
   type NavigationChildLink,
-  type NavigationCloudUpgrade,
   type NavigationCollapsible,
   type NavigationLink,
   type NavigationSection,
@@ -106,16 +104,6 @@ function TopLevelLink({ item, onSelect }: NavigationLinkProps) {
   );
 }
 
-function CloudUpgradeChild({
-  item,
-  onSelect,
-}: {
-  item: NavigationCloudUpgrade;
-  onSelect?: AppSidebarSelectionHandler;
-}) {
-  return null;
-}
-
 function LinkChild({
   item,
   onSelect,
@@ -155,10 +143,6 @@ function LinkChild({
 }
 
 function NavigationChildItem({ item, onSelect }: NavigationChildProps) {
-  if (item.kind === NAVIGATION_ITEM_KIND.CLOUD_UPGRADE) {
-    return <CloudUpgradeChild item={item} onSelect={onSelect} />;
-  }
-
   return <LinkChild item={item} onSelect={onSelect} />;
 }
 

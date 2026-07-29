@@ -8,8 +8,6 @@ import type {
   AlertFormSubmitResult,
   AlertFormValues,
 } from "@/app/(prowler)/alerts/_types/alert-form";
-import { useCloudUpgradeStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
 
 const routerMocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -101,7 +99,6 @@ import { SeedFromFindingsButton } from "../seed-from-findings-button";
 describe("SeedFromFindingsButton", () => {
   afterEach(() => {
     vi.clearAllMocks();
-    useCloudUpgradeStore.getState().closeCloudUpgrade();
   });
 
   it("should explain why creating an alert is disabled when no real filters are applied", async () => {
@@ -359,46 +356,4 @@ describe("SeedFromFindingsButton", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should open the Alerts upgrade in Local Server", async () => {
-    // Given
-    const user = userEvent.setup();
-    render(
-      <SeedFromFindingsButton
-        filterBag={{ "filter[severity__in]": "critical" }}
-        isCloudEnabled={false}
-      />,
-    );
-
-    // When
-    const button = screen.getByRole("button", { name: /Create Alert/i });
-    await user.click(button);
-
-    // Then
-    expect(button).not.toBeDisabled();
-    expect(button.className).not.toContain("min-w");
-    expect(button).not.toHaveClass("justify-start");
-    expect(screen.getByText("Cloud")).toBeVisible();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(useCloudUpgradeStore.getState().activeFeature).toBe(
-      CLOUD_UPGRADE_FEATURE.ALERTS,
-    );
-    expect(actionMocks.seedAlertRule).not.toHaveBeenCalled();
-  });
-
-  it("should expose a single keyboard stop for the Local Server upgrade", async () => {
-    // Given
-    const user = userEvent.setup();
-    render(
-      <SeedFromFindingsButton
-        filterBag={{ "filter[severity__in]": "critical" }}
-        isCloudEnabled={false}
-      />,
-    );
-
-    // When
-    await user.tab();
-
-    // Then
-    expect(screen.getByRole("button", { name: /Create Alert/i })).toHaveFocus();
-  });
 });

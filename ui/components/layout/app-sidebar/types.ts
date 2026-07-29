@@ -1,5 +1,4 @@
 import type { IconComponent } from "@/types";
-import type { CloudUpgradeFeature } from "@/types/cloud-upgrade";
 
 export const APP_SIDEBAR_MODE = {
   BROWSE: "browse",
@@ -12,7 +11,6 @@ export type AppSidebarMode =
 export const NAVIGATION_ITEM_KIND = {
   LINK: "link",
   COLLAPSIBLE: "collapsible",
-  CLOUD_UPGRADE: "cloud_upgrade",
 } as const;
 
 export const NAVIGATION_PERMISSION = {
@@ -47,12 +45,7 @@ export interface NavigationChildLink extends NavigationLabel {
   target?: string;
 }
 
-export interface NavigationCloudUpgrade extends NavigationLabel {
-  kind: typeof NAVIGATION_ITEM_KIND.CLOUD_UPGRADE;
-  cloudUpgradeFeature: CloudUpgradeFeature;
-}
-
-export type NavigationChild = NavigationChildLink | NavigationCloudUpgrade;
+export type NavigationChild = NavigationChildLink;
 
 export interface NavigationCollapsible extends NavigationLabel {
   kind: typeof NAVIGATION_ITEM_KIND.COLLAPSIBLE;

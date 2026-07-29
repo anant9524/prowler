@@ -7,23 +7,18 @@ vi.mock("@/components/layout/app-sidebar", () => ({
   AppSidebar: () => <aside data-testid="sidebar" />,
 }));
 
-vi.mock("@/components/shared/cloud-upgrade-modal", () => ({
-  CloudUpgradeModal: () => <div data-testid="cloud-upgrade-modal" />,
-}));
-
 vi.mock("@/components/findings/jira-dispatch-modal-host", () => ({
   JiraDispatchModalHost: () => <div data-testid="jira-dispatch-modal-host" />,
 }));
 
 describe("MainLayout", () => {
-  it("mounts the shared Cloud upgrade modal with page content", () => {
+  it("mounts the Jira dispatch modal host with page content", () => {
     render(
       <MainLayout>
         <div>Page content</div>
       </MainLayout>,
     );
 
-    expect(screen.getByTestId("cloud-upgrade-modal")).toBeInTheDocument();
     expect(screen.getByTestId("jira-dispatch-modal-host")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByText("Page content")).toBeVisible();

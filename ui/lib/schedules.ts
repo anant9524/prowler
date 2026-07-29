@@ -60,8 +60,9 @@ export const scheduleUpdatePayloadSchema = z.object({
 export function getScanScheduleCapability(
   isCloud: boolean,
 ): ScanScheduleCapability {
-  // Always enable advanced scheduling in self-hosted
-  return SCAN_SCHEDULE_CAPABILITY.ADVANCED;
+  return isCloud
+    ? SCAN_SCHEDULE_CAPABILITY.ADVANCED
+    : SCAN_SCHEDULE_CAPABILITY.DAILY_LEGACY;
 }
 
 export function formatScheduleHour(hour: number): string {

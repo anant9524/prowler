@@ -1,11 +1,6 @@
 "use client";
 
-import { Cloud } from "lucide-react";
 import Link from "next/link";
-
-import { Button } from "@/components/shadcn/button/button";
-import { useCloudUpgradeStore } from "@/store";
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
 
 import type { AppSidebarSelectionHandler } from "./types";
 
@@ -22,8 +17,6 @@ export function SidebarFooter({
 
   return (
     <div className="shrink-0 px-3 pb-4">
-
-
       <div className="border-border-neutral-secondary text-text-neutral-tertiary flex min-h-9 items-center border-t pt-3 text-[11px]">
         {isCloudEnvironment && (
           <Link

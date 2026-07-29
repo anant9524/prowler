@@ -2,23 +2,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CLOUD_UPGRADE_FEATURE } from "@/types/cloud-upgrade";
-
 import { AppSidebarContent } from "./app-sidebar-content";
 import { useAppSidebarMode } from "./app-sidebar-mode-store";
 import { APP_SIDEBAR_MODE } from "./types";
 
-const {
-  openCloudUpgradeMock,
-  openLaunchScanModalMock,
-  pathnameValue,
-  pushMock,
-} = vi.hoisted(() => ({
-  openCloudUpgradeMock: vi.fn(),
-  openLaunchScanModalMock: vi.fn(),
-  pathnameValue: { current: "/findings" },
-  pushMock: vi.fn(),
-}));
+const { openLaunchScanModalMock, pathnameValue, pushMock } = vi.hoisted(
+  () => ({
+    openLaunchScanModalMock: vi.fn(),
+    pathnameValue: { current: "/findings" },
+    pushMock: vi.fn(),
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameValue.current,
@@ -39,11 +33,6 @@ vi.mock("@/store", () => ({
       openLaunchScanModal: typeof openLaunchScanModalMock;
     }) => unknown,
   ) => selector({ openLaunchScanModal: openLaunchScanModalMock }),
-  useCloudUpgradeStore: (
-    selector: (state: {
-      openCloudUpgrade: typeof openCloudUpgradeMock;
-    }) => unknown,
-  ) => selector({ openCloudUpgrade: openCloudUpgradeMock }),
 }));
 
 vi.mock("@/app/(prowler)/lighthouse/_components/navigation", () => ({
@@ -54,7 +43,6 @@ describe("AppSidebarContent", () => {
   beforeEach(() => {
     pathnameValue.current = "/findings";
     pushMock.mockClear();
-    openCloudUpgradeMock.mockClear();
     openLaunchScanModalMock.mockClear();
     useAppSidebarMode.setState({ mode: APP_SIDEBAR_MODE.BROWSE });
   });
@@ -63,7 +51,7 @@ describe("AppSidebarContent", () => {
     vi.unstubAllEnvs();
   });
 
-  it("shares the brand, Launch Scan action and Local Server Cloud affordances", async () => {
+  it("shares the brand, Launch Scan action and navigates to Lighthouse chat", async () => {
     // Given
     vi.stubEnv("UI_CLOUD_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_PROWLER_RELEASE_VERSION", "5.8.0");
@@ -82,11 +70,7 @@ describe("AppSidebarContent", () => {
     expect(screen.getByText("5.8.0")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Chat" }));
-    expect(openCloudUpgradeMock).toHaveBeenCalledWith(
-      CLOUD_UPGRADE_FEATURE.LIGHTHOUSE_AI,
-      undefined,
-    );
-    expect(screen.getAllByText("Cloud").length).toBeGreaterThan(0);
+    expect(pushMock).toHaveBeenCalledWith("/lighthouse");
   });
 
   it("keeps the existing Lighthouse chat sidebar in Cloud Chat mode", () => {

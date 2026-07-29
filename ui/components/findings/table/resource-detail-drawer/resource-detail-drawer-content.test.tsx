@@ -22,8 +22,6 @@ const {
   mockClipboardWriteText,
   mockSearchParamsState,
   mockNotificationIndicator,
-  mockUpdateFindingTriage,
-  mockLoadLatestFindingTriageNote,
 } = vi.hoisted(() => ({
   mockGetComplianceIcon: vi.fn((_: string) => null as string | null),
   mockGetCompliancesOverview: vi.fn(),
@@ -31,8 +29,6 @@ const {
   mockClipboardWriteText: vi.fn(),
   mockSearchParamsState: { value: "" },
   mockNotificationIndicator: vi.fn(),
-  mockUpdateFindingTriage: vi.fn(),
-  mockLoadLatestFindingTriageNote: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -261,11 +257,6 @@ vi.mock("@/actions/compliances", () => ({
   getCompliancesOverview: mockGetCompliancesOverview,
 }));
 
-vi.mock("@/actions/findings", () => ({
-  updateFindingTriage: mockUpdateFindingTriage,
-  loadLatestFindingTriageNote: mockLoadLatestFindingTriageNote,
-}));
-
 vi.mock("@/components/icons", () => ({
   getComplianceIcon: mockGetComplianceIcon,
 }));
@@ -375,102 +366,6 @@ vi.mock("../notification-indicator", () => ({
   DeltaValues: { NEW: "new", CHANGED: "changed", NONE: "none" } as const,
 }));
 
-vi.mock("../finding-triage-cells", () => ({
-  FindingNoteActionItem: ({
-    triage,
-    onTriageUpdateAction,
-  }: {
-    triage?: {
-      findingId: string;
-      findingUid: string;
-      triageId: string | null;
-      notesCount: number;
-      status: string;
-      label: string;
-      isMuted: boolean;
-    };
-    onTriageUpdateAction?: (input: {
-      findingId: string;
-      findingUid: string;
-      triageId: string | null;
-      notesCount: number;
-      status: string;
-      previousStatus: string;
-      isMuted: boolean;
-      note: string;
-    }) => Promise<void>;
-  }) =>
-    triage ? (
-      <button
-        type="button"
-        onClick={() =>
-          onTriageUpdateAction?.({
-            findingId: triage.findingId,
-            findingUid: triage.findingUid,
-            triageId: triage.triageId,
-            notesCount: triage.notesCount,
-            status: "remediating",
-            previousStatus: triage.status,
-            isMuted: triage.isMuted,
-            note: "Investigating",
-          })
-        }
-      >
-        Add Triage Note
-      </button>
-    ) : null,
-  FindingTriageStatusCell: ({
-    triage,
-    onTriageUpdateAction,
-  }: {
-    triage?: {
-      findingId: string;
-      findingUid: string;
-      triageId: string | null;
-      notesCount: number;
-      status: string;
-      label: string;
-      isMuted: boolean;
-    };
-    onTriageUpdateAction?: (input: {
-      findingId: string;
-      findingUid: string;
-      triageId: string | null;
-      notesCount: number;
-      status: string;
-      previousStatus: string;
-      isMuted: boolean;
-    }) => Promise<void>;
-  }) =>
-    triage ? (
-      <button
-        type="button"
-        aria-label="Triage status"
-        onClick={() =>
-          onTriageUpdateAction?.({
-            findingId: triage.findingId,
-            findingUid: triage.findingUid,
-            triageId: triage.triageId,
-            notesCount: triage.notesCount,
-            status: "remediating",
-            previousStatus: triage.status,
-            isMuted: triage.isMuted,
-          })
-        }
-      >
-        {triage.label}
-      </button>
-    ) : (
-      <span>-</span>
-    ),
-  FindingTriageStatusBadge: ({ triage }: { triage: { label: string } }) => (
-    <div>
-      <span>Triage:</span>
-      <span>{triage.label}</span>
-    </div>
-  ),
-}));
-
 vi.mock("./resource-detail-skeleton", () => ({
   ResourceDetailSkeleton: () => <div data-testid="skeleton" />,
 }));
@@ -485,10 +380,6 @@ vi.mock("../../muted", () => ({
 
 import type { ResourceDrawerFinding } from "@/actions/findings";
 import type { FindingResourceRow } from "@/types";
-import {
-  FINDING_TRIAGE_STATUS,
-  type FindingTriageSummary,
-} from "@/types/findings-triage";
 
 import { ResourceDetailDrawerContent } from "./resource-detail-drawer-content";
 import type { CheckMeta } from "./use-resource-detail-drawer";
@@ -518,24 +409,6 @@ const mockCheckMeta: CheckMeta = {
   },
   additionalUrls: [],
 };
-
-function makeTriageSummary(
-  overrides?: Partial<FindingTriageSummary>,
-): FindingTriageSummary {
-  return {
-    findingId: "finding-1",
-    findingUid: "prowler-finding-uid-1",
-    triageId: "triage-1",
-    notesCount: 0,
-    status: FINDING_TRIAGE_STATUS.UNDER_REVIEW,
-    label: "Under Review",
-    hasVisibleNote: false,
-    isMuted: false,
-    canEdit: true,
-    billingHref: "https://prowler.com/pricing",
-    ...overrides,
-  };
-}
 
 const mockFinding: ResourceDrawerFinding = {
   id: "finding-1",
@@ -613,64 +486,7 @@ describe("ResourceDetailDrawerContent — resource navigation", () => {
   });
 });
 
-describe("ResourceDetailDrawerContent — triage drawer actions", () => {
-  it("should render Triage and Add Triage Note for other findings rows", () => {
-    // Given
-    const otherFinding: ResourceDrawerFinding = {
-      ...mockFinding,
-      id: "finding-2",
-      uid: "uid-2",
-      checkId: "ec2_check",
-      checkTitle: "EC2 Check",
-      triage: makeTriageSummary({
-        findingId: "finding-2",
-        findingUid: "uid-2",
-        status: FINDING_TRIAGE_STATUS.REMEDIATING,
-        label: "Remediating",
-      }),
-    };
-
-    render(
-      <ResourceDetailDrawerContent
-        isLoading={false}
-        isNavigating={false}
-        checkMeta={mockCheckMeta}
-        currentIndex={0}
-        totalResources={1}
-        currentFinding={mockFinding}
-        otherFindings={[otherFinding]}
-        onNavigatePrev={vi.fn()}
-        onNavigateNext={vi.fn()}
-        onMuteComplete={vi.fn()}
-      />,
-    );
-
-    // When
-    const row = screen.getByText("EC2 Check").closest("tr");
-    expect(row).not.toBeNull();
-
-    // Then
-    expect(screen.getByText("Triage")).toBeInTheDocument();
-    expect(
-      within(row as HTMLElement).getByRole("button", {
-        name: "Triage status",
-      }),
-    ).toHaveTextContent("Remediating");
-    expect(
-      within(row as HTMLElement).getByRole("button", {
-        name: "Add Triage Note",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(row as HTMLElement).getByRole("button", { name: "Mute" }),
-    ).toBeInTheDocument();
-    expect(
-      within(row as HTMLElement).getByRole("button", {
-        name: "Send 1 Finding to Jira",
-      }),
-    ).toBeInTheDocument();
-  });
-
+describe("ResourceDetailDrawerContent — other findings row actions", () => {
   it("should keep the other findings actions cell sticky on the right edge", () => {
     // Given
     const otherFinding: ResourceDrawerFinding = {
@@ -679,10 +495,6 @@ describe("ResourceDetailDrawerContent — triage drawer actions", () => {
       uid: "uid-2",
       checkId: "ec2_check",
       checkTitle: "EC2 Check",
-      triage: makeTriageSummary({
-        findingId: "finding-2",
-        findingUid: "uid-2",
-      }),
     };
 
     render(
@@ -714,44 +526,6 @@ describe("ResourceDetailDrawerContent — triage drawer actions", () => {
     expect(actionsCell).toHaveClass("bg-bg-neutral-secondary");
     expect(actionsCell).toHaveClass("before:bg-gradient-to-r");
     expect(actionsCell).toHaveClass("before:to-bg-neutral-secondary");
-  });
-
-  it("should update simple drawer triage without using the mute refresh path", async () => {
-    // Given
-    const user = userEvent.setup();
-    const onMuteComplete = vi.fn();
-    mockUpdateFindingTriage.mockResolvedValue(undefined);
-
-    render(
-      <ResourceDetailDrawerContent
-        isLoading={false}
-        isNavigating={false}
-        checkMeta={mockCheckMeta}
-        currentIndex={0}
-        totalResources={1}
-        currentFinding={{
-          ...mockFinding,
-          triage: makeTriageSummary(),
-        }}
-        otherFindings={[]}
-        onNavigatePrev={vi.fn()}
-        onNavigateNext={vi.fn()}
-        onMuteComplete={onMuteComplete}
-      />,
-    );
-
-    // When
-    await user.click(screen.getByRole("button", { name: "Add Triage Note" }));
-
-    // Then
-    expect(mockUpdateFindingTriage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        findingId: "finding-1",
-        status: FINDING_TRIAGE_STATUS.REMEDIATING,
-        note: "Investigating",
-      }),
-    );
-    expect(onMuteComplete).not.toHaveBeenCalled();
   });
 });
 

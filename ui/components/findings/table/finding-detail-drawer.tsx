@@ -68,7 +68,6 @@ export function FindingDetailDrawer({
         onNavigatePrev={drawer.navigatePrev}
         onNavigateNext={drawer.navigateNext}
         onMuteComplete={handleMuteComplete}
-        onTriageUpdate={drawer.patchTriageUpdate}
       />
     );
   }
@@ -94,7 +93,6 @@ export function FindingDetailDrawer({
         onNavigatePrev={drawer.navigatePrev}
         onNavigateNext={drawer.navigateNext}
         onMuteComplete={handleMuteComplete}
-        onTriageUpdate={drawer.patchTriageUpdate}
       />
     </>
   );
