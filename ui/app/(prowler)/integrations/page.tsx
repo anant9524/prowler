@@ -1,6 +1,7 @@
 import {
   ApiKeyLinkCard,
   JiraIntegrationCard,
+  JiraServerIntegrationCard,
   S3IntegrationCard,
   SecurityHubIntegrationCard,
   SsoLinkCard,
@@ -27,6 +28,9 @@ export default async function Integrations() {
 
           {/* Jira Integration */}
           <JiraIntegrationCard />
+
+          {/* Jira Server / Data Center Integration */}
+          <JiraServerIntegrationCard />
 
           {/* SSO Configuration - redirects to Profile */}
           <SsoLinkCard />

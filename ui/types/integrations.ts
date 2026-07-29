@@ -2,7 +2,11 @@ import { z } from "zod";
 
 import type { TaskState } from "@/types/tasks";
 
-export type IntegrationType = "amazon_s3" | "aws_security_hub" | "jira";
+export type IntegrationType =
+  | "amazon_s3"
+  | "aws_security_hub"
+  | "jira"
+  | "jira_server";
 
 export const JIRA_DISPATCH_MODE = {
   INDIVIDUAL: "individual",
@@ -87,6 +91,8 @@ export interface IntegrationProps {
       domain?: string;
       projects?: { [key: string]: string };
       issue_types?: { [key: string]: string[] };
+      // Jira Server specific configuration
+      base_url?: string;
       [key: string]: unknown;
     };
     url?: string;
@@ -378,6 +384,25 @@ export const editJiraIntegrationFormSchema = z.object({
   api_token: z.string().min(1, "API token is required").optional(),
 });
 
+// Jira Server Integration Schemas
+export const jiraServerIntegrationFormSchema = z.object({
+  integration_type: z.literal("jira_server"),
+  base_url: z.url({ error: "Enter a valid URL" }),
+  personal_access_token: z
+    .string()
+    .min(1, "Personal access token is required"),
+  enabled: z.boolean().default(true),
+});
+
+export const editJiraServerIntegrationFormSchema = z.object({
+  integration_type: z.literal("jira_server"),
+  base_url: z.url({ error: "Enter a valid URL" }).optional(),
+  personal_access_token: z
+    .string()
+    .min(1, "Personal access token is required")
+    .optional(),
+});
+
 export type CreateValues = z.infer<typeof jiraIntegrationFormSchema>;
 export type EditValues = z.infer<typeof editJiraIntegrationFormSchema>;
 export type FormValues = CreateValues | EditValues;
@@ -386,4 +411,9 @@ export interface JiraCredentialsPayload {
   domain?: string;
   user_mail?: string;
   api_token?: string;
+}
+
+export interface JiraServerCredentialsPayload {
+  base_url?: string;
+  personal_access_token?: string;
 }

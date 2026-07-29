@@ -66,8 +66,8 @@ export const getJiraIntegrations = async (): Promise<
   const headers = await getAuthHeaders({ contentType: false });
   const url = new URL(`${apiBaseUrl}/integrations`);
 
-  // Filter for Jira integrations only
-  url.searchParams.append("filter[integration_type]", "jira");
+  // Filter for Jira integrations (Cloud and Server) only
+  url.searchParams.append("filter[integration_type__in]", "jira,jira_server");
 
   try {
     const response = await fetch(url.toString(), { method: "GET", headers });

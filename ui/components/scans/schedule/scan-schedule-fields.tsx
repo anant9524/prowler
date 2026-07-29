@@ -167,51 +167,49 @@ export function ScanScheduleFields({
         {headerAction}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Controller
-          control={form.control}
-          name="hour"
-          render={({ field }) => (
-            <NumberSelect
-              label="Scan Time"
-              value={field.value}
-              values={HOUR_OPTIONS}
-              onChange={field.onChange}
-              disabled={advancedDisabled}
-            />
-          )}
-        />
-
-        <Controller
-          control={form.control}
-          name="frequency"
-          render={({ field }) => (
-            <Field>
-              <FieldLabel>Repeats</FieldLabel>
-              <Select
-                value={
-                  canUseAdvancedSchedule
-                    ? field.value
-                    : SCHEDULE_FREQUENCY.DAILY
-                }
-                onValueChange={field.onChange}
+      {canUseAdvancedSchedule && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Controller
+            control={form.control}
+            name="hour"
+            render={({ field }) => (
+              <NumberSelect
+                label="Scan Time"
+                value={field.value}
+                values={HOUR_OPTIONS}
+                onChange={field.onChange}
                 disabled={advancedDisabled}
-              >
-                <SelectTrigger aria-label="Repeats">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FREQUENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {frequencyLabel(option)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-        />
-      </div>
+              />
+            )}
+          />
+
+          <Controller
+            control={form.control}
+            name="frequency"
+            render={({ field }) => (
+              <Field>
+                <FieldLabel>Repeats</FieldLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={advancedDisabled}
+                >
+                  <SelectTrigger aria-label="Repeats">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FREQUENCY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {frequencyLabel(option)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+          />
+        </div>
+      )}
 
       {frequency === SCHEDULE_FREQUENCY.WEEKLY && (
         <Controller

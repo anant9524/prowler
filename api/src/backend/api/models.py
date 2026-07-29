@@ -1943,6 +1943,7 @@ class Integration(RowLevelSecurityProtectedModel):
         AMAZON_S3 = "amazon_s3", _("Amazon S3")
         AWS_SECURITY_HUB = "aws_security_hub", _("AWS Security Hub")
         JIRA = "jira", _("JIRA")
+        JIRA_SERVER = "jira_server", _("Jira Server")
         SLACK = "slack", _("Slack")
 
     id = models.UUIDField(primary_key=True, default=uuid4, editable=False)

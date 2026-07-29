@@ -109,6 +109,8 @@ export const createIntegration = async (
         revalidatePath("/integrations/aws-security-hub");
       } else if (integration_type === "jira") {
         revalidatePath("/integrations/jira");
+      } else if (integration_type === "jira_server") {
+        revalidatePath("/integrations/jira-server");
       }
 
       return {
@@ -214,6 +216,8 @@ export const updateIntegration = async (
         revalidatePath("/integrations/aws-security-hub");
       } else if (integration_type === "jira") {
         revalidatePath("/integrations/jira");
+      } else if (integration_type === "jira_server") {
+        revalidatePath("/integrations/jira-server");
       }
 
       return {
@@ -250,6 +254,8 @@ export const deleteIntegration = async (
         revalidatePath("/integrations/aws-security-hub");
       } else if (integration_type === "jira") {
         revalidatePath("/integrations/jira");
+      } else if (integration_type === "jira_server") {
+        revalidatePath("/integrations/jira-server");
       }
 
       return { success: "Integration deleted successfully!" };
@@ -341,6 +347,7 @@ export const testIntegrationConnection = async (
         revalidatePath("/integrations/amazon-s3");
         revalidatePath("/integrations/aws-security-hub");
         revalidatePath("/integrations/jira");
+        revalidatePath("/integrations/jira-server");
 
         if ("error" in pollResult) {
           return { success: false, error: pollResult.error };
@@ -387,6 +394,7 @@ export const pollConnectionTestStatus = async (
     revalidatePath("/integrations/amazon-s3");
     revalidatePath("/integrations/aws-security-hub");
     revalidatePath("/integrations/jira");
+    revalidatePath("/integrations/jira-server");
 
     if ("error" in pollResult) {
       return { success: false, error: pollResult.error };

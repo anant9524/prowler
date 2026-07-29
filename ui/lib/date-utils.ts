@@ -36,7 +36,15 @@ export function formatLocalDate(
   }
 }
 
-/** Local time with the browser's short zone label (e.g. "12:00AM MAD"), as shown by DateWithTime. */
+/**
+ * Local time with the browser's short zone label (e.g. "7:11PM GMT+5:30" or
+ * "12:00AM PST"), as shown by DateWithTime.
+ *
+ * Uses `Intl.DateTimeFormat`'s own `timeZoneName` resolution rather than
+ * truncating the IANA zone name — that previous approach produced fake,
+ * misleading codes for many zones (e.g. "Asia/Calcutta" -> "CAL", read as
+ * California instead of India Standard Time; "Europe/Madrid" -> "MAD").
+ */
 export function formatLocalTimeWithZone(
   value: string | null | undefined,
 ): string | undefined {
@@ -44,14 +52,12 @@ export function formatLocalTimeWithZone(
   try {
     const date = parseISO(value);
     if (isNaN(date.getTime())) return undefined;
-    const zone =
-      Intl.DateTimeFormat()
-        .resolvedOptions()
-        .timeZone.split("/")
-        .pop()
-        ?.substring(0, 3)
-        .toUpperCase() || "";
-    return `${format(date, "h:mma")} ${zone}`.trim();
+    const zone = new Intl.DateTimeFormat(undefined, {
+      timeZoneName: "short",
+    })
+      .formatToParts(date)
+      .find((part) => part.type === "timeZoneName")?.value;
+    return `${format(date, "h:mma")}${zone ? ` ${zone}` : ""}`.trim();
   } catch {
     return undefined;
   }

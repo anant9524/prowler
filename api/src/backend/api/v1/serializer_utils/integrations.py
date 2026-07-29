@@ -137,6 +137,27 @@ class JiraCredentialSerializer(BaseValidateSerializer):
         resource_name = "integrations"
 
 
+class JiraServerConfigSerializer(BaseValidateSerializer):
+    base_url = serializers.CharField(read_only=True)
+    issue_types = serializers.DictField(
+        read_only=True,
+        child=serializers.ListField(child=serializers.CharField()),
+        default={},
+    )
+    projects = serializers.DictField(read_only=True)
+
+    class Meta:
+        resource_name = "integrations"
+
+
+class JiraServerCredentialSerializer(BaseValidateSerializer):
+    base_url = serializers.URLField(required=True)
+    personal_access_token = serializers.CharField(required=True)
+
+    class Meta:
+        resource_name = "integrations"
+
+
 @extend_schema_field(
     {
         "oneOf": [
@@ -212,6 +233,24 @@ class JiraCredentialSerializer(BaseValidateSerializer):
                 },
                 "required": ["user_mail", "api_token", "domain"],
             },
+            {
+                "type": "object",
+                "title": "Jira Server Credentials",
+                "properties": {
+                    "base_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "The base URL of your self-hosted Jira Server/Data Center instance "
+                        "(e.g., 'https://jira.yourcompany.com').",
+                    },
+                    "personal_access_token": {
+                        "type": "string",
+                        "description": "A Personal Access Token generated from your Jira Server/Data Center "
+                        "account.",
+                    },
+                },
+                "required": ["base_url", "personal_access_token"],
+            },
         ]
     }
 )
@@ -264,6 +303,14 @@ class IntegrationCredentialField(serializers.JSONField):
                 "title": "JIRA",
                 "description": "JIRA integration does not accept any configuration in the payload. Leave it as an "
                 "empty JSON object (`{}`).",
+                "properties": {},
+                "additionalProperties": False,
+            },
+            {
+                "type": "object",
+                "title": "Jira Server",
+                "description": "Jira Server integration does not accept any configuration in the payload. Leave "
+                "it as an empty JSON object (`{}`).",
                 "properties": {},
                 "additionalProperties": False,
             },

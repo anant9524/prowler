@@ -45,6 +45,8 @@ from api.v1.serializer_utils.integrations import (
     IntegrationCredentialField,
     JiraConfigSerializer,
     JiraCredentialSerializer,
+    JiraServerConfigSerializer,
+    JiraServerCredentialSerializer,
     S3ConfigSerializer,
     SecurityHubConfigSerializer,
     replace_integration_providers,
@@ -2816,6 +2818,19 @@ class BaseWriteIntegrationSerializer(BaseWriteSerializer):
                 pointer="/data/attributes/configuration",
             )
 
+        if (
+            integration_type == Integration.IntegrationChoices.JIRA_SERVER
+            and Integration.objects.filter(
+                configuration__contains={
+                    "base_url": attrs.get("configuration").get("base_url")
+                }
+            ).exists()
+        ):
+            raise ConflictException(
+                detail="This integration already exists.",
+                pointer="/data/attributes/configuration",
+            )
+
         # Check if any provider already has a SecurityHub integration
         if hasattr(self, "instance") and self.instance and not integration_type:
             integration_type = self.instance.integration_type
@@ -2895,6 +2910,30 @@ class BaseWriteIntegrationSerializer(BaseWriteSerializer):
                 }
             )
             credentials_serializers = [JiraCredentialSerializer]
+        elif integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+            if providers:
+                raise serializers.ValidationError(
+                    {
+                        "providers": "Relationship field is not accepted. This integration applies to all providers."
+                    }
+                )
+            if configuration:
+                raise serializers.ValidationError(
+                    {
+                        "configuration": "This integration does not support custom configuration."
+                    }
+                )
+            config_serializer = JiraServerConfigSerializer
+            # Create non-editable configuration for Jira Server integration
+            # issue_types will be populated per project when connection is tested
+            configuration.update(
+                {
+                    "projects": {},
+                    "issue_types": {},
+                    "base_url": credentials.get("base_url"),
+                }
+            )
+            credentials_serializers = [JiraServerCredentialSerializer]
         else:
             raise serializers.ValidationError(
                 {
@@ -2955,6 +2994,10 @@ class IntegrationSerializer(IntegrationProviderVisibilityMixin, RLSSerializer):
         if instance.integration_type == Integration.IntegrationChoices.JIRA:
             representation["configuration"].update(
                 {"domain": instance.credentials.get("domain")}
+            )
+        elif instance.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+            representation["configuration"].update(
+                {"base_url": instance.credentials.get("base_url")}
             )
         return representation
 
@@ -3054,10 +3097,13 @@ class IntegrationUpdateSerializer(
     def validate(self, attrs):
         integration_type = self.instance.integration_type
         providers = attrs.get("providers")
-        if integration_type != Integration.IntegrationChoices.JIRA:
-            configuration = attrs.get("configuration") or self.instance.configuration
-        else:
+        if integration_type in (
+            Integration.IntegrationChoices.JIRA,
+            Integration.IntegrationChoices.JIRA_SERVER,
+        ):
             configuration = attrs.get("configuration", {})
+        else:
+            configuration = attrs.get("configuration") or self.instance.configuration
         credentials = attrs.get("credentials") or self.instance.credentials
 
         self.validate_integration_data(
@@ -3094,6 +3140,10 @@ class IntegrationUpdateSerializer(
             representation["configuration"].update(
                 {"domain": instance.credentials.get("domain")}
             )
+        elif instance.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+            representation["configuration"].update(
+                {"base_url": instance.credentials.get("base_url")}
+            )
         return representation
 
 
@@ -3125,7 +3175,10 @@ class IntegrationJiraDispatchSerializer(BaseSerializerV1):
         integration_instance = Integration.objects.get(
             id=self.context.get("integration_id")
         )
-        if integration_instance.integration_type != Integration.IntegrationChoices.JIRA:
+        if integration_instance.integration_type not in (
+            Integration.IntegrationChoices.JIRA,
+            Integration.IntegrationChoices.JIRA_SERVER,
+        ):
             raise ValidationError(
                 {"integration_type": "The given integration is not a JIRA integration"}
             )

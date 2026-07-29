@@ -304,10 +304,20 @@ const SendToJiraModalContent = ({
     value: type,
     label: type,
   }));
-  const integrationOptions = integrations.map((integration) => ({
-    value: integration.id,
-    label: integration.attributes.configuration.domain || integration.id,
-  }));
+  const integrationOptions = integrations.map((integration) => {
+    const { integration_type, configuration } = integration.attributes;
+    const target =
+      integration_type === "jira_server"
+        ? configuration.base_url
+        : configuration.domain;
+    const typeLabel =
+      integration_type === "jira_server" ? "Jira Server" : "Jira Cloud";
+
+    return {
+      value: integration.id,
+      label: target ? `${target} (${typeLabel})` : `${typeLabel} - ${integration.id}`,
+    };
+  });
   const projectOptions = projectEntries.map(([key, name]) => ({
     value: key,
     label: `${key} - ${name}`,

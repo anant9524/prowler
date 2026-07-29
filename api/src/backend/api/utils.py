@@ -17,6 +17,7 @@ from api.models import (
     Role,
     UserRoleRelationship,
 )
+from api.integrations.jira_server import JiraServer
 from api.v1.serializers import FindingMetadataSerializer
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import transaction
@@ -519,6 +520,26 @@ def prowler_integration_connection_test(integration: Integration) -> Connection:
             integration.configuration["issue_types"] = issue_types
             integration.save()
         return jira_connection
+    elif integration.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+        jira_server_connection = JiraServer.test_connection(
+            **integration.credentials,
+            raise_on_exception=False,
+        )
+        project_keys = (
+            jira_server_connection.projects
+            if jira_server_connection.is_connected
+            else {}
+        )
+        issue_types = (
+            jira_server_connection.issue_types
+            if jira_server_connection.is_connected
+            else {}
+        )
+        with rls_transaction(str(integration.tenant_id)):
+            integration.configuration["projects"] = project_keys
+            integration.configuration["issue_types"] = issue_types
+            integration.save()
+        return jira_server_connection
     elif integration.integration_type == Integration.IntegrationChoices.SLACK:
         pass
     else:
@@ -667,7 +688,7 @@ def get_findings_metadata_no_aggregations(tenant_id: str, filtered_queryset):
     return serializer.data
 
 
-def initialize_prowler_integration(integration: Integration) -> Jira:
+def initialize_prowler_integration(integration: Integration) -> Jira | JiraServer:
     # TODO Refactor other integrations to use this function
     if integration.integration_type == Integration.IntegrationChoices.JIRA:
         try:
@@ -679,3 +700,9 @@ def initialize_prowler_integration(integration: Integration) -> Jira:
                 integration.connection_last_checked_at = datetime.now(tz=UTC)
                 integration.save()
             raise jira_auth_error
+    elif integration.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+        # Unlike Jira Cloud's constructor, JiraServer doesn't eagerly call the
+        # remote API (no cloud-ID lookup to perform), so there's no auth error
+        # that can surface here — only from an actual request (get_projects,
+        # send_finding, etc.), which callers already handle.
+        return JiraServer(**integration.credentials)
