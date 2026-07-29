@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   ActionDropdown,
@@ -12,15 +12,6 @@ import {
   JIRA_DISPATCH_TARGET,
   type JiraDispatchTarget,
 } from "@/types/integrations";
-
-const { isGroupedJiraDispatchEnabledMock } = vi.hoisted(() => ({
-  isGroupedJiraDispatchEnabledMock: vi.fn(() => false),
-}));
-
-vi.mock("@/lib/deployment", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/deployment")>()),
-  isGroupedJiraDispatchEnabled: isGroupedJiraDispatchEnabledMock,
-}));
 
 import { JiraDispatchActionItem } from "./jira-dispatch-action-item";
 
@@ -37,7 +28,6 @@ const renderAction = (targetIds: string[], targetType: JiraDispatchTarget) => {
 
 describe("JiraDispatchActionItem", () => {
   beforeEach(() => {
-    isGroupedJiraDispatchEnabledMock.mockReturnValue(false);
     useJiraDispatchStore.getState().closeJiraDispatch();
   });
 
@@ -56,7 +46,7 @@ describe("JiraDispatchActionItem", () => {
     });
   });
 
-  it("disables grouped dispatch with a Cloud tooltip and does nothing on click", async () => {
+  it("opens Jira modal payload for a Finding Group (the backend dispatches it identically to a single finding)", async () => {
     // Given
     const user = userEvent.setup();
     renderAction(["check-1"], JIRA_DISPATCH_TARGET.CHECK_ID);
@@ -64,32 +54,8 @@ describe("JiraDispatchActionItem", () => {
     // When
     await user.click(screen.getByRole("button", { name: "Actions" }));
     const jiraAction = screen.getByRole("menuitem", { name: "Send to Jira" });
-    expect(
-      within(jiraAction).queryByText("Available only in Prowler Cloud"),
-    ).not.toBeInTheDocument();
-    await user.hover(jiraAction);
-
-    // Then
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Available only in Prowler Cloud",
-    );
-
-    // When
+    expect(jiraAction).not.toHaveAttribute("aria-disabled", "true");
     await user.click(jiraAction);
-
-    // Then
-    expect(useJiraDispatchStore.getState().activePayload).toBeNull();
-  });
-
-  it("opens grouped Jira payload when feature is enabled", async () => {
-    // Given
-    isGroupedJiraDispatchEnabledMock.mockReturnValue(true);
-    const user = userEvent.setup();
-    renderAction(["check-1"], JIRA_DISPATCH_TARGET.CHECK_ID);
-
-    // When
-    await user.click(screen.getByRole("button", { name: "Actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Send to Jira" }));
 
     // Then
     expect(useJiraDispatchStore.getState().activePayload).toMatchObject({
