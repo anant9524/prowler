@@ -227,13 +227,20 @@ class JiraServer:
         return projects
 
     def get_available_issue_types(self, project_key: str) -> List[str]:
+        """List issue types available for creating issues in a project.
+
+        Uses the per-project `createmeta/{projectKey}/issuetypes` endpoint
+        rather than the old bulk `createmeta?projectKeys=...&expand=...`
+        endpoint: Atlassian replaced the bulk form years ago, and some
+        Server/Data Center versions no longer route it at all, in which case
+        it 404s with a generic "Issue Does Not Exist" (the request falls
+        through to the single-issue-lookup handler, which treats "createmeta"
+        as an issue key).
+        """
         try:
             response = requests.get(
-                self._url("rest/api/2/issue/createmeta"),
-                params={
-                    "projectKeys": project_key,
-                    "expand": "projects.issuetypes.fields",
-                },
+                self._url(f"rest/api/2/issue/createmeta/{project_key}/issuetypes"),
+                params={"maxResults": 200},
                 headers=self.get_headers(),
                 timeout=REQUEST_TIMEOUT,
             )
@@ -246,17 +253,17 @@ class JiraServer:
             raise JiraServerAuthenticationError(
                 "Jira Server rejected the Personal Access Token."
             )
+        if response.status_code == 404:
+            raise JiraServerNoProjectsError(
+                f"Project '{project_key}' was not found in Jira Server."
+            )
         if response.status_code != 200:
             raise JiraServerGetIssueTypesError(
                 f"Failed to get issue types: {response.status_code} - {response.text}"
             )
 
-        projects = response.json().get("projects", [])
-        if not projects:
-            raise JiraServerNoProjectsError(
-                f"Project '{project_key}' was not found in Jira Server."
-            )
-        return [issue_type["name"] for issue_type in projects[0].get("issuetypes", [])]
+        issue_types = response.json().get("values", [])
+        return [issue_type["name"] for issue_type in issue_types]
 
     @staticmethod
     def test_connection(
