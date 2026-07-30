@@ -124,8 +124,11 @@ def _build_s3_key_prefix(
     provider_segment = "-".join(
         _sanitize_s3_path_segment(part) for part in (alias, cloud, uid) if part
     )
+    # Django runs with TIME_ZONE=UTC/USE_TZ=True, so started_at is UTC. The "Z"
+    # suffix makes that explicit in the folder name (the UI renders scan times
+    # in the viewer's local zone, so the offset is otherwise easy to misread).
     scan_segment = (
-        started_at.strftime("%Y-%m-%d_%H%M%S") if started_at else str(scan_id)
+        started_at.strftime("%Y-%m-%d_%H%M%SZ") if started_at else str(scan_id)
     )
 
     return f"{base_directory.rstrip('/')}/{provider_segment}/{scan_segment}"
