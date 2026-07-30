@@ -972,11 +972,22 @@ def generate_outputs_task(scan_id: str, provider_id: str, tenant_id: str):
 
     # S3 integrations (need output_directory)
     with rls_transaction(tenant_id, using=READ_REPLICA_ALIAS):
-        s3_integrations = Integration.objects.filter(
-            integrationproviderrelationship__provider_id=provider_id,
-            integration_type=Integration.IntegrationChoices.AMAZON_S3,
-            enabled=True,
+        s3_integrations = list(
+            Integration.objects.filter(
+                integrationproviderrelationship__provider_id=provider_id,
+                integration_type=Integration.IntegrationChoices.AMAZON_S3,
+                enabled=True,
+            )
         )
+
+    # Diagnostic: makes it obvious in the worker logs whether the scanned
+    # provider is actually linked to an enabled S3 integration.
+    logger.info(
+        "S3 integration lookup for provider %s (scan %s): %d enabled integration(s) linked",
+        provider_id,
+        scan_id,
+        len(s3_integrations),
+    )
 
     if s3_integrations:
         # Pass the output directory path to S3 integration task to reconstruct objects from files
