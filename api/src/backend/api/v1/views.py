@@ -116,6 +116,7 @@ from api.models import (
     ScanSummary,
     SeverityChoices,
     StateChoices,
+    StatusChoices,
     Task,
     TenantAPIKey,
     TenantComplianceSummary,
@@ -6848,6 +6849,11 @@ class IntegrationJiraViewSet(BaseRLSViewSet):
             queryset = Finding.all_objects.filter(
                 scan__provider__in=self.allowed_providers
             )
+
+        # Only failing findings are ticket-worthy. A check_id dispatch matches
+        # every finding for that check regardless of status, so without this a
+        # ticket would list passing resources too.
+        queryset = queryset.filter(status=StatusChoices.FAIL)
 
         # When the caller doesn't pin a scan or date, restrict to the latest
         # completed scan per provider — matching the default "latest findings"

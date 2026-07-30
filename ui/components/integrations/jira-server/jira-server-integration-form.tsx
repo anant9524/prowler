@@ -358,6 +358,7 @@ export const JiraServerIntegrationForm = ({
                             }}
                             defaultValue={field.value ? [field.value] : []}
                             placeholder="Select a project"
+                            preventAutoFocus
                             searchable
                             emptyIndicator="No projects found."
                             disabled={isLoading}
@@ -387,6 +388,7 @@ export const JiraServerIntegrationForm = ({
                               }
                               defaultValue={field.value ? [field.value] : []}
                               placeholder="Select an issue type"
+                              preventAutoFocus
                               searchable
                               emptyIndicator="No issue types found."
                               disabled={isLoading}

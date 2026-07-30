@@ -45,6 +45,10 @@ interface EnhancedMultiSelectProps {
   className?: string;
   id?: string;
   "aria-label"?: string;
+  // Keep focus on the trigger when the dropdown opens instead of auto-focusing
+  // the search box. Prevents the browser from scrolling a tall scroll
+  // container (e.g. a long modal) when the popover's input takes focus.
+  preventAutoFocus?: boolean;
 }
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -69,6 +73,7 @@ export function EnhancedMultiSelect({
   className,
   id,
   "aria-label": ariaLabel,
+  preventAutoFocus = false,
 }: EnhancedMultiSelectProps) {
   const [selectedValues, setSelectedValues] = useState<string[]>(defaultValue);
   const [open, setOpen] = useState(false);
@@ -295,6 +300,9 @@ export function EnhancedMultiSelect({
         className="border-border-input-primary bg-bg-input-primary text-text-neutral-primary pointer-events-auto z-50 w-[var(--radix-popover-trigger-width)] max-w-[var(--radix-popover-trigger-width)] touch-manipulation rounded-lg p-0"
         align="start"
         onEscapeKeyDown={() => setOpen(false)}
+        {...(preventAutoFocus
+          ? { onOpenAutoFocus: (event: Event) => event.preventDefault() }
+          : {})}
       >
         <Command>
           {searchable && (
