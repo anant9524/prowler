@@ -38,6 +38,8 @@ type JiraServerFormValues = {
 
 interface JiraServerIntegrationFormProps {
   integration?: IntegrationProps | null;
+  // null means creating a new integration.
+  editMode?: "configuration" | "credentials" | null;
   onSuccess: (integrationId?: string, shouldTestConnection?: boolean) => void;
   onCancel: () => void;
 }
@@ -51,12 +53,18 @@ const stringifyExtraFields = (
 
 export const JiraServerIntegrationForm = ({
   integration,
+  editMode = null,
   onSuccess,
   onCancel,
 }: JiraServerIntegrationFormProps) => {
   const { toast } = useToast();
   const isEditing = !!integration;
   const isCreating = !isEditing;
+  const isEditingConfig = editMode === "configuration";
+  const isEditingCredentials = editMode === "credentials";
+  // Credentials fields (URL + token) show on create and in the Credentials
+  // modal; dispatch targets show only in the Config modal.
+  const showCredentialsSection = isCreating || isEditingCredentials;
 
   const configuration = integration?.attributes.configuration;
   const projects = (configuration?.projects ?? {}) as Record<string, string>;
@@ -65,9 +73,9 @@ export const JiraServerIntegrationForm = ({
     string[]
   >;
   const projectEntries = Object.entries(projects);
-  // Project configs can only be chosen once a successful connection test has
+  // Dispatch targets can only be chosen once a successful connection test has
   // populated the available projects.
-  const showDefaults = isEditing && projectEntries.length > 0;
+  const showDefaults = isEditingConfig && projectEntries.length > 0;
 
   // Seed the editor from saved project_configs, falling back to the legacy
   // single-default fields so nothing configured before is lost.
@@ -134,17 +142,14 @@ export const JiraServerIntegrationForm = ({
 
       const credentials: JiraServerCredentialsPayload = {};
 
-      if (isEditing) {
-        // Only send credentials when the PAT is actually re-entered; otherwise
-        // omit them entirely so the backend keeps the existing ones (editing
-        // dispatch targets must not require retyping the token).
-        if (data.personal_access_token) {
-          credentials.personal_access_token = data.personal_access_token;
-          if (data.base_url) credentials.base_url = data.base_url;
-        }
-      } else {
+      if (isCreating) {
         credentials.base_url = data.base_url;
         credentials.personal_access_token = data.personal_access_token;
+      } else if (isEditingCredentials && data.personal_access_token) {
+        // Only send credentials when the PAT is actually re-entered; otherwise
+        // omit them so the backend keeps the existing ones.
+        credentials.personal_access_token = data.personal_access_token;
+        if (data.base_url) credentials.base_url = data.base_url;
       }
 
       if (Object.keys(credentials).length > 0) {
@@ -155,7 +160,7 @@ export const JiraServerIntegrationForm = ({
         formData.append("configuration", JSON.stringify({}));
         formData.append("providers", JSON.stringify([]));
         formData.append("enabled", JSON.stringify(data.enabled ?? true));
-      } else if (showDefaults) {
+      } else if (isEditingConfig) {
         const projectConfigs = (data.project_configs ?? [])
           .filter((pc) => pc.project_key && pc.issue_type)
           .map((pc) => ({
@@ -200,7 +205,8 @@ export const JiraServerIntegrationForm = ({
 
         // Re-test after a credentials change (or on create) to refresh
         // projects/issue types; a pure dispatch-targets edit doesn't need it.
-        const credentialsChanged = isCreating || !!data.personal_access_token;
+        const credentialsChanged =
+          isCreating || (isEditingCredentials && !!data.personal_access_token);
         const integrationId =
           "integrationId" in result ? result.integrationId : integration?.id;
 
@@ -221,7 +227,11 @@ export const JiraServerIntegrationForm = ({
     }
   };
 
-  const getButtonLabel = () => (isEditing ? "Save" : "Create Integration");
+  const getButtonLabel = () => {
+    if (isCreating) return "Create Integration";
+    if (isEditingCredentials) return "Update Credentials";
+    return "Save";
+  };
 
   return (
     <Form {...form}>
@@ -233,38 +243,50 @@ export const JiraServerIntegrationForm = ({
             dropdown — whose popover portals into the dialog — doesn't scroll
             the whole modal to the top. */}
         <div className="-mr-1 flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
-          <CustomInput
-            control={form.control}
-            name="base_url"
-            type="text"
-            label="Jira Server URL"
-            labelPlacement="inside"
-            placeholder="https://jira.yourcompany.com"
-            isRequired={isCreating}
-            isDisabled={isLoading}
-          />
+          {showCredentialsSection && (
+            <>
+              <CustomInput
+                control={form.control}
+                name="base_url"
+                type="text"
+                label="Jira Server URL"
+                labelPlacement="inside"
+                placeholder="https://jira.yourcompany.com"
+                isRequired={isCreating}
+                isDisabled={isLoading}
+              />
 
-          <CustomInput
-            control={form.control}
-            name="personal_access_token"
-            type="password"
-            label={
-              isEditing
-                ? "Personal Access Token (leave blank to keep current)"
-                : "Personal Access Token"
-            }
-            labelPlacement="inside"
-            placeholder="Enter your Jira Personal Access Token"
-            isRequired={isCreating}
-            isDisabled={isLoading}
-          />
+              <CustomInput
+                control={form.control}
+                name="personal_access_token"
+                type="password"
+                label={
+                  isEditing
+                    ? "Personal Access Token (leave blank to keep current)"
+                    : "Personal Access Token"
+                }
+                labelPlacement="inside"
+                placeholder="Enter your Jira Personal Access Token"
+                isRequired={isCreating}
+                isDisabled={isLoading}
+              />
 
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              Generate a Personal Access Token from your Jira Server account
-              settings (Profile &gt; Personal Access Tokens).
-            </p>
-          </div>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Generate a Personal Access Token from your Jira Server account
+                  settings (Profile &gt; Personal Access Tokens).
+                </p>
+              </div>
+            </>
+          )}
+
+          {isEditingConfig && projectEntries.length === 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              No projects loaded yet. Test the connection first (from the
+              integration card) so the available projects and issue types are
+              fetched, then configure your dispatch targets here.
+            </div>
+          )}
 
           {showDefaults && (
             <div className="flex flex-col gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">

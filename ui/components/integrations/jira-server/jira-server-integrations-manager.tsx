@@ -42,6 +42,9 @@ export const JiraServerIntegrationsManager = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIntegration, setEditingIntegration] =
     useState<IntegrationProps | null>(null);
+  const [editMode, setEditMode] = useState<
+    "configuration" | "credentials" | null
+  >(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState<string | null>(null);
   const [isOperationLoading, setIsOperationLoading] = useState(false);
@@ -52,11 +55,19 @@ export const JiraServerIntegrationsManager = ({
 
   const handleAddIntegration = () => {
     setEditingIntegration(null);
+    setEditMode(null);
     setIsModalOpen(true);
   };
 
   const handleEditCredentials = (integration: IntegrationProps) => {
     setEditingIntegration(integration);
+    setEditMode("credentials");
+    setIsModalOpen(true);
+  };
+
+  const handleEditConfiguration = (integration: IntegrationProps) => {
+    setEditingIntegration(integration);
+    setEditMode("configuration");
     setIsModalOpen(true);
   };
 
@@ -177,6 +188,7 @@ export const JiraServerIntegrationsManager = ({
   const handleModalClose = () => {
     setIsModalOpen(false);
     setEditingIntegration(null);
+    setEditMode(null);
   };
 
   const handleFormSuccess = async (
@@ -186,6 +198,7 @@ export const JiraServerIntegrationsManager = ({
     // Close the modal immediately
     setIsModalOpen(false);
     setEditingIntegration(null);
+    setEditMode(null);
     setIsOperationLoading(true);
 
     // Set testing state for server-triggered test connections
@@ -254,13 +267,16 @@ export const JiraServerIntegrationsManager = ({
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         title={
-          editingIntegration
-            ? "Configure Jira Server Integration"
-            : "Add Jira Server Integration"
+          !editingIntegration
+            ? "Add Jira Server Integration"
+            : editMode === "credentials"
+              ? "Update Jira Server Credentials"
+              : "Configure Jira Server Dispatch Targets"
         }
       >
         <JiraServerIntegrationForm
           integration={editingIntegration}
+          editMode={editMode}
           onSuccess={handleFormSuccess}
           onCancel={handleModalClose}
         />
@@ -326,6 +342,7 @@ export const JiraServerIntegrationsManager = ({
                     <IntegrationActionButtons
                       integration={integration}
                       onTestConnection={handleTestConnection}
+                      onEditConfiguration={handleEditConfiguration}
                       onEditCredentials={handleEditCredentials}
                       onToggleEnabled={handleToggleEnabled}
                       onDelete={handleOpenDeleteModal}
