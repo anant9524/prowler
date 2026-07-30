@@ -42,15 +42,42 @@ def get_s3_client_from_integration(
     Returns:
         tuple[bool, S3 | Connection]: A tuple containing a boolean indicating if the connection was successful and the S3 client or connection object.
     """
-    s3 = S3(
-        **integration.credentials,
-        bucket_name=integration.configuration["bucket_name"],
-        output_directory=integration.configuration["output_directory"],
+    credentials = integration.credentials or {}
+    bucket_name = integration.configuration["bucket_name"]
+    output_directory = integration.configuration["output_directory"]
+
+    # "AWS SDK Default" stores no explicit auth. The S3 constructor's
+    # AwsSetUpSession rejects empty credentials, but the Test-connection path
+    # (S3.test_connection -> AwsProvider.setup_session) falls back to the
+    # ambient AWS credential chain (e.g. the EC2 instance profile). Mirror that
+    # here so uploads authenticate with the same identity Test uses, instead of
+    # failing with "a profile, an AWS access key ID, ... is required".
+    has_explicit_auth = any(
+        credentials.get(key)
+        for key in (
+            "role_arn",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "profile",
+        )
     )
 
+    if has_explicit_auth:
+        s3 = S3(
+            **credentials,
+            bucket_name=bucket_name,
+            output_directory=output_directory,
+        )
+    else:
+        s3 = S3(
+            session=AwsProvider.setup_session(),
+            bucket_name=bucket_name,
+            output_directory=output_directory,
+        )
+
     connection = s3.test_connection(
-        **integration.credentials,
-        bucket_name=integration.configuration["bucket_name"],
+        **credentials,
+        bucket_name=bucket_name,
     )
 
     if connection.is_connected:
