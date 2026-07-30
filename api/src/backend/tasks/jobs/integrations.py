@@ -101,8 +101,12 @@ def upload_s3_integration(
                 logger.info(
                     f"S3 connection failed for integration {integration.id}: {e}"
                 )
-                integration.connected = False
-                integration.save()
+                # save() writes an RLS-protected row, so it must run inside a
+                # tenant-scoped transaction; otherwise Postgres casts an empty
+                # GUC (''::uuid) and raises, masking the real connection error.
+                with rls_transaction(tenant_id):
+                    integration.connected = False
+                    integration.save()
                 continue
 
             if connected:
@@ -151,11 +155,14 @@ def upload_s3_integration(
                     continue
                 integration_executions += 1
             else:
-                integration.connected = False
-                integration.save()
+                # Log the real connection error first, then persist the status
+                # inside a tenant-scoped transaction (see note above).
                 logger.error(
                     f"S3 upload failed, connection failed for integration {integration.id}: {s3.error}"
                 )
+                with rls_transaction(tenant_id):
+                    integration.connected = False
+                    integration.save()
 
         result = integration_executions == len(integrations)
         if result:
