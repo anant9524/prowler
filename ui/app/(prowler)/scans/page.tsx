@@ -188,13 +188,21 @@ export default async function Scans({
   const providers = providersData?.data ?? [];
   const providerGroups = providerGroupsData?.data ?? [];
 
+  // Only trust "no providers" when the fetch actually succeeded. A transient
+  // failure (e.g. under scan load) returns undefined; treating that as zero
+  // providers made the page flash "No Providers Configured" mid-scan.
+  const providersFetchSucceeded = providersData !== undefined;
+
   const connectedProviders = providers.filter(
     (provider: ProviderProps) =>
       provider.attributes.connection.connected === true,
   );
-  const thereIsNoProviders = providers.length === 0;
+  const thereIsNoProviders =
+    providersFetchSucceeded && providers.length === 0;
   const thereIsNoProvidersConnected =
-    !thereIsNoProviders && connectedProviders.length === 0;
+    providersFetchSucceeded &&
+    !thereIsNoProviders &&
+    connectedProviders.length === 0;
   const missingScanPrerequisite =
     thereIsNoProviders || thereIsNoProvidersConnected;
 

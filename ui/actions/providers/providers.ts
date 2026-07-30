@@ -88,13 +88,26 @@ export const getAllProviders = async ({
         | ProvidersApiResponse
         | undefined;
 
-      if (!data?.data || data.data.length === 0) {
+      if (!data) {
+        // Actual fetch/parse failure. Leave lastResponse unset so the caller
+        // can distinguish "failed to fetch" (returns undefined) from
+        // "genuinely no providers" (returns an empty response).
+        hasMorePages = false;
+        continue;
+      }
+
+      // Valid response (possibly empty). Capture it even when empty so a real
+      // zero-provider result returns an empty response instead of undefined —
+      // otherwise a transient fetch failure is indistinguishable from having
+      // no providers, and pages flash their "No Providers Configured" state.
+      lastResponse = data;
+
+      if (!data.data || data.data.length === 0) {
         hasMorePages = false;
         continue;
       }
 
       allProviders.push(...data.data);
-      lastResponse = data;
 
       // Check if we've fetched all pages
       const totalPages = data.meta?.pagination?.pages || 1;
