@@ -474,16 +474,146 @@ def upload_security_hub_integration(
         return False
 
 
+def _send_grouped_findings_to_jira(
+    tenant_id: str,
+    jira_integration,
+    project_key: str,
+    issue_type: str,
+    finding_ids: list[str],
+):
+    """Create one Jira issue per check, listing every affected resource.
+
+    Findings are grouped by ``check_id``; check-level metadata (title,
+    severity, risk, remediation) is taken from the first finding of each group
+    since it is identical across the check, while each finding contributes its
+    own resource to the issue's "Affected resources" section.
+    """
+    groups = {}
+    for finding_id in finding_ids:
+        with rls_transaction(tenant_id):
+            finding_instance = (
+                Finding.all_objects.select_related("scan__provider")
+                .prefetch_related("resources")
+                .get(id=finding_id)
+            )
+
+            resource = (
+                finding_instance.resources.first()
+                if finding_instance.resources.exists()
+                else None
+            )
+            resource_tags = {}
+            if resource and hasattr(resource, "tags"):
+                resource_tags = resource.get_tags(tenant_id)
+
+            check_id = finding_instance.check_id
+            group = groups.get(check_id)
+            if group is None:
+                check_metadata = finding_instance.check_metadata
+                remediation = check_metadata.get("remediation", {})
+                recommendation = remediation.get("recommendation", {})
+                remediation_code = remediation.get("code", {})
+                group = {
+                    "check_id": check_id,
+                    "check_title": check_metadata.get("checktitle", ""),
+                    "severity": finding_instance.severity,
+                    "status": finding_instance.status,
+                    "status_extended": finding_instance.status_extended or "",
+                    "provider": finding_instance.scan.provider.provider,
+                    "risk": check_metadata.get("risk", ""),
+                    "recommendation_text": recommendation.get("text", ""),
+                    "recommendation_url": recommendation.get("url", ""),
+                    "remediation_code_native_iac": remediation_code.get("nativeiac", ""),
+                    "remediation_code_terraform": remediation_code.get("terraform", ""),
+                    "remediation_code_cli": remediation_code.get("cli", ""),
+                    "remediation_code_other": remediation_code.get("other", ""),
+                    "compliance": finding_instance.compliance or {},
+                    "resources": [],
+                }
+                groups[check_id] = group
+
+            group["resources"].append(
+                {
+                    "uid": resource.uid if resource else "",
+                    "name": resource.name if resource else "",
+                    "region": resource.region if resource and resource.region else "",
+                    "tags": resource_tags,
+                }
+            )
+
+    num_tickets_created = 0
+    error_messages = []
+    for check_id, group in groups.items():
+        try:
+            result = jira_integration.send_finding(
+                check_id=group["check_id"],
+                check_title=group["check_title"],
+                severity=group["severity"],
+                status=group["status"],
+                status_extended=group["status_extended"],
+                provider=group["provider"],
+                risk=group["risk"],
+                recommendation_text=group["recommendation_text"],
+                recommendation_url=group["recommendation_url"],
+                remediation_code_native_iac=group["remediation_code_native_iac"],
+                remediation_code_terraform=group["remediation_code_terraform"],
+                remediation_code_cli=group["remediation_code_cli"],
+                remediation_code_other=group["remediation_code_other"],
+                compliance=group["compliance"],
+                resources=group["resources"],
+                project_key=project_key,
+                issue_type=issue_type,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send grouped finding %s to Jira", check_id
+            )
+            error_messages.append(JIRA_GENERIC_SEND_ERROR)
+            continue
+
+        if result:
+            num_tickets_created += 1
+        else:
+            logger.error(JIRA_GENERIC_SEND_ERROR)
+            error_messages.append(JIRA_GENERIC_SEND_ERROR)
+
+    result = {
+        "created_count": num_tickets_created,
+        "failed_count": len(groups) - num_tickets_created,
+    }
+    if error_messages:
+        result["error"] = "; ".join(dict.fromkeys(error_messages))
+
+    return result
+
+
 def send_findings_to_jira(
     tenant_id: str,
     integration_id: str,
     project_key: str,
     issue_type: str,
     finding_ids: list[str],
+    dispatch_mode: str = "individual",
 ):
     with rls_transaction(tenant_id):
         integration = Integration.objects.get(id=integration_id)
         jira_integration = initialize_prowler_integration(integration)
+
+    # "grouped" collapses the selection into one Jira issue per check, listing
+    # every affected resource. Scoped to Jira Server so Jira Cloud keeps its
+    # existing one-issue-per-finding behavior untouched.
+    if (
+        dispatch_mode == "grouped"
+        and integration.integration_type
+        == Integration.IntegrationChoices.JIRA_SERVER
+    ):
+        return _send_grouped_findings_to_jira(
+            tenant_id,
+            jira_integration,
+            project_key,
+            issue_type,
+            finding_ids,
+        )
 
     num_tickets_created = 0
     error_messages = []

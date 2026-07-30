@@ -3170,6 +3170,12 @@ class IntegrationJiraDispatchSerializer(BaseSerializerV1):
 
     project_key = serializers.CharField(required=True)
     issue_type = serializers.CharField(required=True)
+    # "grouped" collapses the selected findings into one Jira issue per check
+    # (Jira Server only); "individual" creates one issue per finding. The UI
+    # has always sent this; previously it was ignored server-side.
+    dispatch_mode = serializers.ChoiceField(
+        choices=["individual", "grouped"], required=False, default="individual"
+    )
 
     class JSONAPIMeta:
         resource_name = "integrations-jira-dispatches"

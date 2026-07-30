@@ -108,9 +108,7 @@ def _build_description(
     status: str,
     status_extended: str,
     provider: str,
-    region: str,
-    resource_uid: str,
-    resource_name: str,
+    resources: List[dict],
     risk: str,
     recommendation_text: str,
     recommendation_url: str,
@@ -118,7 +116,6 @@ def _build_description(
     remediation_code_terraform: str,
     remediation_code_cli: str,
     remediation_code_other: str,
-    resource_tags: Optional[dict],
     compliance: Optional[dict],
 ) -> str:
     """Build a plain-text issue description.
@@ -126,6 +123,9 @@ def _build_description(
     Jira Server/DC's REST API v2 takes a plain string (or wiki markup, not
     ADF) for `description` — this intentionally skips the Atlassian Document
     Format machinery the Cloud client builds, which is v3-only.
+
+    ``resources`` is a list of {uid, name, region, tags} dicts. One entry for a
+    single-finding issue, or many for a grouped (one-issue-per-check) issue.
     """
     lines = [
         f"*Check*: {check_title} ({check_id})",
@@ -133,10 +133,7 @@ def _build_description(
         f"*Status*: {status}" + (f" - {status_extended}" if status_extended else ""),
         f"*Provider*: {provider}",
     ]
-    if region:
-        lines.append(f"*Region*: {region}")
-    if resource_name or resource_uid:
-        lines.append(f"*Resource*: {resource_name} ({resource_uid})")
+
     if risk:
         lines.append("")
         lines.append(f"*Risk*: {risk}")
@@ -161,11 +158,22 @@ def _build_description(
             lines.append(code)
             lines.append("{code}")
 
-    if resource_tags:
+    if resources:
         lines.append("")
-        lines.append(
-            "*Tags*: " + ", ".join(f"{k}={v}" for k, v in resource_tags.items())
-        )
+        lines.append(f"*Affected resources* ({len(resources)}):")
+        for resource in resources:
+            name = resource.get("name") or ""
+            uid = resource.get("uid") or ""
+            region = resource.get("region") or ""
+            label = " ".join(part for part in [name, f"({uid})" if uid else ""] if part)
+            if region:
+                label = f"{label} [{region}]" if label else f"[{region}]"
+            lines.append(f"- {label}" if label else "- (unknown resource)")
+            tags = resource.get("tags")
+            if tags:
+                lines.append(
+                    "  Tags: " + ", ".join(f"{k}={v}" for k, v in tags.items())
+                )
 
     if compliance:
         lines.append("")
@@ -330,19 +338,42 @@ class JiraServer:
         remediation_code_other: str = "",
         resource_tags: Optional[dict] = None,
         compliance: Optional[dict] = None,
+        resources: Optional[List[dict]] = None,
         project_key: str = "",
         issue_type: str = "",
         **_ignored,
     ) -> bool:
-        """Create a Jira issue for a single finding.
+        """Create a Jira issue for one finding, or one grouped per-check issue.
 
         Mirrors the Cloud client's `send_finding` signature/contract (same
         keyword arguments as called from `send_findings_to_jira` in
         `tasks/jobs/integrations.py`, same True/False return for
         success/failure) so that job requires no changes to dispatch to
         either integration type.
+
+        When ``resources`` is provided (grouped dispatch), the issue covers
+        every listed resource; otherwise the single resource described by the
+        scalar ``resource_*``/``region`` arguments is used.
         """
-        summary = _sanitize_summary(f"{check_title} - {resource_name or resource_uid}")
+        if resources is None:
+            resources = [
+                {
+                    "uid": resource_uid,
+                    "name": resource_name,
+                    "region": region,
+                    "tags": resource_tags or {},
+                }
+            ]
+
+        if len(resources) == 1:
+            primary = resources[0]
+            resource_label = primary.get("name") or primary.get("uid") or ""
+            summary = _sanitize_summary(f"{check_title} - {resource_label}")
+        else:
+            summary = _sanitize_summary(
+                f"{check_title} - {len(resources)} affected resources"
+            )
+
         description = _build_description(
             check_id=check_id,
             check_title=check_title,
@@ -350,9 +381,7 @@ class JiraServer:
             status=status,
             status_extended=status_extended,
             provider=provider,
-            region=region,
-            resource_uid=resource_uid,
-            resource_name=resource_name,
+            resources=resources,
             risk=risk,
             recommendation_text=recommendation_text,
             recommendation_url=recommendation_url,
@@ -360,7 +389,6 @@ class JiraServer:
             remediation_code_terraform=remediation_code_terraform,
             remediation_code_cli=remediation_code_cli,
             remediation_code_other=remediation_code_other,
-            resource_tags=resource_tags,
             compliance=compliance,
         )
 
