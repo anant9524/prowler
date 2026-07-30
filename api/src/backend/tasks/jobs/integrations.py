@@ -1,10 +1,11 @@
 import os
+import re
 import time
 from glob import glob
 
 from api.db_router import READ_REPLICA_ALIAS, MainRouter
 from api.db_utils import REPLICA_MAX_ATTEMPTS, REPLICA_RETRY_BASE_DELAY, rls_transaction
-from api.models import Finding, Integration, Provider
+from api.models import Finding, Integration, Provider, Scan
 from api.utils import initialize_prowler_integration, initialize_prowler_provider
 from celery.utils.log import get_task_logger
 from config.django.base import DJANGO_FINDINGS_BATCH_SIZE
@@ -32,19 +33,28 @@ JIRA_GENERIC_SEND_ERROR = "Failed to create Jira issue."
 
 def get_s3_client_from_integration(
     integration: Integration,
+    output_directory: str = None,
 ) -> tuple[bool, S3 | Connection]:
     """
     Create and return a boto3 S3 client using AWS credentials from an integration.
 
     Args:
         integration (Integration): The integration to get the S3 client from.
+        output_directory (str, optional): Override for the S3 key prefix. When
+            omitted, the integration's configured output_directory is used.
 
     Returns:
         tuple[bool, S3 | Connection]: A tuple containing a boolean indicating if the connection was successful and the S3 client or connection object.
     """
     credentials = integration.credentials or {}
     bucket_name = integration.configuration["bucket_name"]
-    output_directory = integration.configuration["output_directory"]
+    # S3 key prefix. Callers may override the integration's configured
+    # output_directory to add per-provider / per-scan folders.
+    output_directory = (
+        output_directory
+        if output_directory is not None
+        else integration.configuration["output_directory"]
+    )
 
     # "AWS SDK Default" stores no explicit auth. The S3 constructor's
     # AwsSetUpSession rejects empty credentials, but the Test-connection path
@@ -86,8 +96,43 @@ def get_s3_client_from_integration(
     return False, connection
 
 
+def _sanitize_s3_path_segment(value: str) -> str:
+    """Make a string safe to use as a single S3 key segment."""
+    return re.sub(r"[^\w.\-]", "-", (value or "").strip()).strip("-") or "unknown"
+
+
+def _build_s3_key_prefix(
+    tenant_id: str, provider_id: str, scan_id: str, base_directory: str
+) -> str:
+    """Build the S3 key prefix for a scan's outputs.
+
+    Layout: ``<base>/<alias>-<cloud>-<uid>/<scan-timestamp>``, e.g.
+    ``output/Infosec-Main-aws-339713050878/2026-07-30_1730``. The cloud type is
+    included so multi-cloud providers (aws/azure/gcp/oci) stay distinguishable.
+    The per-format subfolder (csv/, html/, …) is appended by the Prowler S3
+    uploader itself.
+    """
+    with rls_transaction(tenant_id, using=READ_REPLICA_ALIAS):
+        provider = Provider.objects.get(id=provider_id)
+        alias = provider.alias or ""
+        cloud = provider.provider
+        uid = provider.uid
+        started_at = Scan.objects.get(id=scan_id).started_at
+
+    # <alias>-<cloud>-<uid>, dropping the alias when unset so the uid is not
+    # repeated (e.g. "aws-339713050878" instead of "339713050878-aws-3397...").
+    provider_segment = "-".join(
+        _sanitize_s3_path_segment(part) for part in (alias, cloud, uid) if part
+    )
+    scan_segment = (
+        started_at.strftime("%Y-%m-%d_%H%M%S") if started_at else str(scan_id)
+    )
+
+    return f"{base_directory.rstrip('/')}/{provider_segment}/{scan_segment}"
+
+
 def upload_s3_integration(
-    tenant_id: str, provider_id: str, output_directory: str
+    tenant_id: str, provider_id: str, output_directory: str, scan_id: str = None
 ) -> bool:
     """
     Upload the specified output files to an S3 bucket from an integration.
@@ -122,8 +167,27 @@ def upload_s3_integration(
 
         integration_executions = 0
         for integration in integrations:
+            # Group uploads per provider and per scan instead of dumping every
+            # scan's files into shared format folders.
+            key_prefix = None
+            if scan_id:
+                try:
+                    key_prefix = _build_s3_key_prefix(
+                        tenant_id,
+                        provider_id,
+                        scan_id,
+                        integration.configuration["output_directory"],
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not build per-scan S3 prefix for integration "
+                        f"{integration.id}, using configured output directory: {e}"
+                    )
+
             try:
-                connected, s3 = get_s3_client_from_integration(integration)
+                connected, s3 = get_s3_client_from_integration(
+                    integration, output_directory=key_prefix
+                )
             except Exception as e:
                 logger.info(
                     f"S3 connection failed for integration {integration.id}: {e}"

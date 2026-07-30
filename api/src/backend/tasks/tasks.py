@@ -996,6 +996,7 @@ def generate_outputs_task(scan_id: str, provider_id: str, tenant_id: str):
                 "tenant_id": tenant_id,
                 "provider_id": provider_id,
                 "output_directory": out_dir,
+                "scan_id": scan_id,
             }
         ).get(
             disable_sync_subtasks=False
@@ -1388,6 +1389,7 @@ def s3_integration_task(
     tenant_id: str,
     provider_id: str,
     output_directory: str,
+    scan_id: str = None,
 ):
     """
     Process S3 integrations for a provider.
@@ -1396,8 +1398,12 @@ def s3_integration_task(
         tenant_id (str): The tenant identifier
         provider_id (str): The provider identifier
         output_directory (str): Path to the directory containing output files
+        scan_id (str, optional): The scan identifier, used to group uploaded
+            objects under per-provider / per-scan S3 folders.
     """
-    return upload_s3_integration(tenant_id, provider_id, output_directory)
+    return upload_s3_integration(
+        tenant_id, provider_id, output_directory, scan_id=scan_id
+    )
 
 
 @shared_task(
