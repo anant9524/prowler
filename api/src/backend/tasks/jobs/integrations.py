@@ -546,11 +546,19 @@ def _send_grouped_findings_to_jira(
                     "compliance": finding_instance.compliance or {},
                     "resources": [],
                 }
+                group["_seen_uids"] = set()
                 groups[check_id] = group
+
+            resource_uid = resource.uid if resource else ""
+            # Dedupe resources within a check: a check_id dispatch can match the
+            # same resource across scans, and one line per resource is enough.
+            if resource_uid and resource_uid in group["_seen_uids"]:
+                continue
+            group["_seen_uids"].add(resource_uid)
 
             group["resources"].append(
                 {
-                    "uid": resource.uid if resource else "",
+                    "uid": resource_uid,
                     "name": resource.name if resource else "",
                     "region": resource.region if resource and resource.region else "",
                     "service": resource.service if resource else "",
@@ -560,6 +568,7 @@ def _send_grouped_findings_to_jira(
                     # Per-resource reason — varies across resources within a
                     # single check, unlike the check-level metadata above.
                     "status_extended": finding_instance.status_extended or "",
+                    "raw_result": finding_instance.raw_result or {},
                     "tags": resource_tags,
                 }
             )
@@ -722,6 +731,7 @@ def send_findings_to_jira(
                             "account_alias": finding_instance.scan.provider.alias
                             or "",
                             "status_extended": finding_instance.status_extended or "",
+                            "raw_result": finding_instance.raw_result or {},
                             "tags": resource_tags,
                         }
                     ]

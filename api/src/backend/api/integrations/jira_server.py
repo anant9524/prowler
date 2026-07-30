@@ -14,6 +14,7 @@ core package is installed at image-build time from
 `prowler/` would not be included in a custom-built API image.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -26,6 +27,16 @@ from prowler.providers.common.models import Connection
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 90
+
+# Jira's `description` field caps at 32,767 characters; stay comfortably under
+# it and truncate rather than let issue creation fail.
+MAX_DESCRIPTION_CHARS = 30000
+# Stop attaching per-resource evidence once the description reaches this size,
+# so a check with many resources still lists them all (name + reason) even if
+# the raw evidence has to be dropped for the tail.
+EVIDENCE_BUDGET_CHARS = 24000
+# Cap each resource's raw evidence blob.
+MAX_EVIDENCE_CHARS = 1200
 
 
 class JiraServerError(Exception):
@@ -165,13 +176,15 @@ def _build_description(
     if resources:
         lines.append("")
         lines.append(f"*Affected resources* ({len(resources)}):")
+        # Rough running size so evidence blocks don't blow the description cap.
+        approx_len = sum(len(line) + 1 for line in lines)
         for resource in resources:
             name = resource.get("name") or ""
             uid = resource.get("uid") or ""
             heading = name or uid or "(unknown resource)"
-            lines.append(f"# *{heading}*")
+            resource_lines = [f"# *{heading}*"]
             if uid and uid != name:
-                lines.append(f"** ARN/ID: {uid}")
+                resource_lines.append(f"** ARN/ID: {uid}")
 
             account_uid = resource.get("account_uid") or ""
             account_alias = resource.get("account_alias") or ""
@@ -181,7 +194,7 @@ def _build_description(
                     for part in [account_alias, f"({account_uid})" if account_uid else ""]
                     if part
                 )
-                lines.append(f"** Account: {account}")
+                resource_lines.append(f"** Account: {account}")
 
             location = " | ".join(
                 f"{label}: {value}"
@@ -193,17 +206,35 @@ def _build_description(
                 if value
             )
             if location:
-                lines.append(f"** {location}")
+                resource_lines.append(f"** {location}")
 
             status_extended = resource.get("status_extended") or ""
             if status_extended:
-                lines.append(f"** Reason: {status_extended}")
+                resource_lines.append(f"** Reason: {status_extended}")
 
             tags = resource.get("tags")
             if tags:
-                lines.append(
+                resource_lines.append(
                     "** Tags: " + ", ".join(f"{k}={v}" for k, v in tags.items())
                 )
+
+            # Evidence (the raw check result Prowler records), budget permitting.
+            raw_result = resource.get("raw_result")
+            if raw_result and approx_len < EVIDENCE_BUDGET_CHARS:
+                try:
+                    evidence = json.dumps(raw_result, default=str, sort_keys=True)
+                except (TypeError, ValueError):
+                    evidence = str(raw_result)
+                if len(evidence) > MAX_EVIDENCE_CHARS:
+                    evidence = evidence[:MAX_EVIDENCE_CHARS] + " …(truncated)"
+                resource_lines.append("** Evidence:")
+                resource_lines.append("{code}")
+                resource_lines.append(evidence)
+                resource_lines.append("{code}")
+
+            block = "\n".join(resource_lines)
+            approx_len += len(block) + 1
+            lines.append(block)
 
     if compliance:
         lines.append("")
@@ -211,7 +242,12 @@ def _build_description(
             "*Compliance*: " + ", ".join(f"{k}: {v}" for k, v in compliance.items())
         )
 
-    return "\n".join(lines)
+    description = "\n".join(lines)
+    if len(description) > MAX_DESCRIPTION_CHARS:
+        description = (
+            description[:MAX_DESCRIPTION_CHARS] + "\n\n…(description truncated)"
+        )
+    return description
 
 
 class JiraServer:
@@ -401,6 +437,7 @@ class JiraServer:
                     "name": resource_name,
                     "region": region,
                     "status_extended": status_extended,
+                    "raw_result": _ignored.get("raw_result") or {},
                     "tags": resource_tags or {},
                 }
             ]

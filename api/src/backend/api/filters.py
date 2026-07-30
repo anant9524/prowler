@@ -1713,6 +1713,13 @@ class IntegrationJiraFindingsFilter(FilterSet):
     # To be expanded as needed
     finding_id = UUIDFilter(field_name="id", lookup_expr="exact")
     finding_id__in = UUIDInFilter(field_name="id", lookup_expr="in")
+    # Finding-group (check) dispatch: the UI selects whole checks by check_id.
+    check_id = CharFilter(field_name="check_id", lookup_expr="exact")
+    check_id__in = CharInFilter(field_name="check_id", lookup_expr="in")
+    # Optional scan scoping so a check_id dispatch can be pinned to a specific
+    # scan; when absent the viewset defaults to the latest completed scan.
+    scan_id = UUIDFilter(field_name="scan_id", lookup_expr="exact")
+    scan_id__in = UUIDInFilter(field_name="scan_id", lookup_expr="in")
 
     class Meta:
         model = Finding

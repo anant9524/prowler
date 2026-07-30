@@ -6842,9 +6842,35 @@ class IntegrationJiraViewSet(BaseRLSViewSet):
     def get_queryset(self):
         if self.allowed_providers is None:
             # User has unlimited visibility, return all findings
-            return Finding.all_objects.filter(tenant_id=self.request.tenant_id)
-        # Findings are limited to the providers the role can access
-        return Finding.all_objects.filter(scan__provider__in=self.allowed_providers)
+            queryset = Finding.all_objects.filter(tenant_id=self.request.tenant_id)
+        else:
+            # Findings are limited to the providers the role can access
+            queryset = Finding.all_objects.filter(
+                scan__provider__in=self.allowed_providers
+            )
+
+        # When the caller doesn't pin a scan or date, restrict to the latest
+        # completed scan per provider — matching the default "latest findings"
+        # view. Without this a check_id dispatch would fan out across every
+        # historical scan (daily runs), creating stale/duplicate tickets.
+        params = self.request.query_params
+        has_scan_or_date_filter = any(
+            key.startswith("filter[scan_id") or key.startswith("filter[inserted_at")
+            for key in params
+        )
+        if not has_scan_or_date_filter:
+            latest_scan_ids = (
+                Scan.all_objects.filter(
+                    tenant_id=self.request.tenant_id,
+                    state=StateChoices.COMPLETED,
+                )
+                .order_by("provider_id", "-inserted_at")
+                .distinct("provider_id")
+                .values("id")
+            )
+            queryset = queryset.filter(scan_id__in=Subquery(latest_scan_ids))
+
+        return queryset
 
     def get_integration(self, integration_pk):
         """Retrieve the integration, honoring the provider visibility of the user's role."""
