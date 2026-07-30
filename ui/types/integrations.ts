@@ -96,6 +96,7 @@ export interface IntegrationProps {
       // Jira Server dispatch targets (one-click send from Findings). Several
       // projects can be configured; the user picks one per batch.
       project_configs?: Array<{
+        label?: string;
         project_key: string;
         issue_type: string;
         extra_fields?: Record<string, unknown>;
@@ -121,6 +122,7 @@ export interface JiraDispatchRequest {
       project_key: string;
       issue_type: string;
       dispatch_mode?: JiraDispatchMode;
+      extra_fields?: Record<string, unknown>;
     };
   };
 }
@@ -428,6 +430,9 @@ const jiraServerExtraFieldsJson = z
   );
 
 export const jiraServerProjectConfigSchema = z.object({
+  // Alias so several targets for the same project (e.g. different assignees)
+  // can be told apart when sending findings.
+  label: z.string().optional(),
   project_key: z.string().min(1, "Select a project"),
   issue_type: z.string().min(1, "Select an issue type"),
   extra_fields_json: jiraServerExtraFieldsJson,
@@ -436,10 +441,10 @@ export const jiraServerProjectConfigSchema = z.object({
 export const editJiraServerIntegrationFormSchema = z.object({
   integration_type: z.literal("jira_server"),
   base_url: z.url({ error: "Enter a valid URL" }).optional(),
-  personal_access_token: z
-    .string()
-    .min(1, "Personal access token is required")
-    .optional(),
+  // Blank means "keep the current token" — must accept an empty string, so no
+  // min() here (min(1).optional() would reject "" since the field defaults to
+  // an empty string rather than undefined).
+  personal_access_token: z.string().optional(),
   // Dispatch targets (editable once the connection has been tested).
   project_configs: z.array(jiraServerProjectConfigSchema).optional(),
   default_project_key: z.string().optional(),

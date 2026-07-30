@@ -1425,6 +1425,7 @@ def jira_integration_task(
     issue_type: str,
     finding_ids: list[str],
     dispatch_mode: str = "individual",
+    extra_fields: dict = None,
 ):
     return send_findings_to_jira(
         tenant_id,
@@ -1433,6 +1434,7 @@ def jira_integration_task(
         issue_type,
         finding_ids,
         dispatch_mode=dispatch_mode,
+        extra_fields=extra_fields,
     )
 
 

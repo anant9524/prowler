@@ -23,6 +23,8 @@ export interface JiraDispatchSettings {
   projectKey: string;
   issueType: string;
   dispatchMode: JiraDispatchMode;
+  // Jira Server only: chosen target's required-fields JSON.
+  extraFields?: Record<string, unknown>;
 }
 
 export interface JiraDispatchExecutionResult {
@@ -80,6 +82,7 @@ export async function executeJiraDispatchBatches(
         projectKey: settings.projectKey,
         issueType: settings.issueType,
         dispatchMode,
+        extraFields: settings.extraFields,
       });
 
       if (!result.success) {

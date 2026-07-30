@@ -19,6 +19,7 @@ import {
 } from "@/types/integrations";
 
 interface ProjectConfigFormValue {
+  label?: string;
   project_key: string;
   issue_type: string;
   extra_fields_json?: string;
@@ -74,6 +75,7 @@ export const JiraServerIntegrationForm = ({
     const saved = configuration?.project_configs;
     if (saved && saved.length > 0) {
       return saved.map((pc) => ({
+        label: pc.label || "",
         project_key: pc.project_key,
         issue_type: pc.issue_type,
         extra_fields_json: stringifyExtraFields(pc.extra_fields),
@@ -82,6 +84,7 @@ export const JiraServerIntegrationForm = ({
     if (configuration?.default_project_key) {
       return [
         {
+          label: "",
           project_key: configuration.default_project_key,
           issue_type: configuration.default_issue_type || "",
           extra_fields_json: stringifyExtraFields(configuration.extra_fields),
@@ -156,6 +159,7 @@ export const JiraServerIntegrationForm = ({
         const projectConfigs = (data.project_configs ?? [])
           .filter((pc) => pc.project_key && pc.issue_type)
           .map((pc) => ({
+            label: pc.label?.trim() || "",
             project_key: pc.project_key,
             issue_type: pc.issue_type,
             extra_fields: pc.extra_fields_json?.trim()
@@ -285,7 +289,8 @@ export const JiraServerIntegrationForm = ({
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                        Project {index + 1}
+                        {watchedConfigs[index]?.label?.trim() ||
+                          `Target ${index + 1}`}
                       </span>
                       <div className="flex items-center gap-2">
                         <Button
@@ -312,6 +317,17 @@ export const JiraServerIntegrationForm = ({
                         </Button>
                       </div>
                     </div>
+
+                    <CustomInput
+                      control={form.control}
+                      name={`project_configs.${index}.label`}
+                      type="text"
+                      label="Alias (optional)"
+                      labelPlacement="inside"
+                      placeholder="e.g. INS – Anant, OPS – Prince"
+                      isRequired={false}
+                      isDisabled={isLoading}
+                    />
 
                     <FormField
                       control={form.control}

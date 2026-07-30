@@ -253,6 +253,7 @@ export const JiraServerIntegrationsManager = ({
       <Modal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
+        scrollable
         title={
           editingIntegration
             ? "Configure Jira Server Integration"

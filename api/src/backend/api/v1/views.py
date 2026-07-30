@@ -6935,6 +6935,7 @@ class IntegrationJiraViewSet(BaseRLSViewSet):
         project_key = serializer.validated_data["project_key"]
         issue_type = serializer.validated_data["issue_type"]
         dispatch_mode = serializer.validated_data.get("dispatch_mode", "individual")
+        extra_fields = serializer.validated_data.get("extra_fields")
 
         with transaction.atomic():
             task = jira_integration_task.delay(
@@ -6944,6 +6945,7 @@ class IntegrationJiraViewSet(BaseRLSViewSet):
                 issue_type=issue_type,
                 finding_ids=finding_ids,
                 dispatch_mode=dispatch_mode,
+                extra_fields=extra_fields,
             )
         prowler_task = Task.objects.get(id=task.id)
         serializer = TaskSerializer(prowler_task)

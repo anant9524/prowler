@@ -21,6 +21,10 @@ interface JiraDispatchInput {
   projectKey: string;
   issueType: string;
   dispatchMode?: JiraDispatchMode;
+  // Jira Server only: the chosen target's required-fields JSON. Sent so
+  // several targets for the same project (different assignees, etc.) resolve
+  // to the exact fields the user picked.
+  extraFields?: Record<string, unknown>;
 }
 
 export const getJiraIssueTypes = async (
@@ -118,6 +122,7 @@ export const sendJiraDispatch = async ({
   projectKey,
   issueType,
   dispatchMode = JIRA_DISPATCH_MODE.INDIVIDUAL,
+  extraFields,
 }: JiraDispatchInput): Promise<
   | { success: true; taskId: string; message: string }
   | { success: false; error: string }
@@ -140,6 +145,7 @@ export const sendJiraDispatch = async ({
         project_key: projectKey,
         issue_type: issueType,
         dispatch_mode: dispatchMode,
+        ...(extraFields ? { extra_fields: extraFields } : {}),
       },
     },
   };

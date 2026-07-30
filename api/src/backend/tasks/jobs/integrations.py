@@ -610,16 +610,21 @@ def send_findings_to_jira(
     issue_type: str,
     finding_ids: list[str],
     dispatch_mode: str = "individual",
+    extra_fields: dict = None,
 ):
     with rls_transaction(tenant_id):
         integration = Integration.objects.get(id=integration_id)
         jira_integration = initialize_prowler_integration(integration)
 
-    # Apply the required-fields JSON configured for the project being filed
-    # into (Jira Server can target several projects, each with its own).
+    # Apply the required-fields JSON for the target being filed into. Prefer
+    # the fields the caller sent (the exact target the user picked, which
+    # disambiguates several targets for the same project); otherwise resolve
+    # from the integration's project_configs by project_key.
     if integration.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
         jira_integration.set_extra_fields(
-            _resolve_jira_server_extra_fields(integration, project_key)
+            extra_fields
+            if extra_fields is not None
+            else _resolve_jira_server_extra_fields(integration, project_key)
         )
 
     # "grouped" collapses the selection into one Jira issue per check, listing

@@ -3176,6 +3176,12 @@ class IntegrationJiraDispatchSerializer(BaseSerializerV1):
     dispatch_mode = serializers.ChoiceField(
         choices=["individual", "grouped"], required=False, default="individual"
     )
+    # Jira Server only: required-fields JSON of the specific target the user
+    # picked, sent verbatim so several targets for the same project (e.g.
+    # different assignees) resolve to the exact fields chosen. When omitted
+    # (e.g. API callers), the fields are resolved from the integration's
+    # project_configs by project_key instead.
+    extra_fields = serializers.DictField(required=False)
 
     class JSONAPIMeta:
         resource_name = "integrations-jira-dispatches"

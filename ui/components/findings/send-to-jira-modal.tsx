@@ -6,6 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useForm } from "react-hook-form";
@@ -98,6 +99,13 @@ const SendToJiraModalContent = ({
     Record<string, string[]>
   >({});
   const [isFetchingIssueTypes, setIsFetchingIssueTypes] = useState(false);
+  // Jira Server: index (into serverProjectConfigs) of the chosen target, and
+  // that target's required-fields JSON to send with the dispatch.
+  const [serverConfigIndex, setServerConfigIndex] = useState<string>("");
+  const [serverExtraFields, setServerExtraFields] = useState<
+    Record<string, unknown> | undefined
+  >(undefined);
+  const serverAutoSelectedForRef = useRef<string | null>(null);
 
   const form = useForm<SendToJiraFormData>({
     resolver: zodResolver(sendToJiraSchema),
@@ -158,16 +166,20 @@ const SendToJiraModalContent = ({
   );
 
   // Jira Server integrations carry one or more configured dispatch targets
-  // (project + issue type + required fields). The user picks a target here
-  // instead of raw project/issue-type dropdowns; the default is pre-selected.
-  const serverProjectConfigs = (() => {
+  // (alias + project + issue type + required fields). The user picks a target
+  // here instead of raw project/issue-type dropdowns; the default is
+  // pre-selected. Targets are addressed by index so several targets for the
+  // same project (e.g. different assignees) stay distinct.
+  const serverProjectConfigs: Array<{
+    label?: string;
+    project_key: string;
+    issue_type: string;
+    extra_fields?: Record<string, unknown>;
+  }> = (() => {
     if (
       selectedIntegrationData?.attributes.integration_type !== "jira_server"
     ) {
-      return [] as {
-        project_key: string;
-        issue_type: string;
-      }[];
+      return [];
     }
     const config = selectedIntegrationData.attributes.configuration;
     if (config.project_configs && config.project_configs.length > 0) {
@@ -179,6 +191,7 @@ const SendToJiraModalContent = ({
         {
           project_key: config.default_project_key,
           issue_type: config.default_issue_type || "",
+          extra_fields: config.extra_fields,
         },
       ];
     }
@@ -188,28 +201,46 @@ const SendToJiraModalContent = ({
   const serverDefaultProjectKey =
     (selectedIntegrationData?.attributes.integration_type === "jira_server"
       ? selectedIntegrationData.attributes.configuration.default_project_key
-      : "") ||
-    serverProjectConfigs[0]?.project_key ||
-    "";
+      : "") || "";
 
-  const selectServerProject = (projectKey: string) => {
-    const config = serverProjectConfigs.find(
-      (pc) => pc.project_key === projectKey,
-    );
-    form.setValue("project", projectKey, { shouldValidate: true });
+  const serverConfigLabel = (
+    config: (typeof serverProjectConfigs)[number],
+  ): string => {
+    if (config.label?.trim()) return config.label;
+    const name = projects[config.project_key];
+    return name
+      ? `${config.project_key} - ${name} (${config.issue_type})`
+      : `${config.project_key} (${config.issue_type})`;
+  };
+
+  const selectServerConfig = (indexValue: string) => {
+    setServerConfigIndex(indexValue);
+    const config =
+      indexValue === "" ? undefined : serverProjectConfigs[Number(indexValue)];
+    setServerExtraFields(config?.extra_fields);
+    form.setValue("project", config?.project_key ?? "", {
+      shouldValidate: true,
+    });
     form.setValue("issueType", config?.issue_type ?? "", {
       shouldValidate: true,
     });
   };
 
-  // Pre-select the default target whenever a Jira Server integration is chosen
-  // and nothing is selected yet.
+  // Pre-select the default target once per chosen integration. Keyed on the
+  // integration id so a later manual clear is respected (not re-filled).
   useEffect(() => {
-    if (useServerProjectPicker && !selectedProject && serverDefaultProjectKey) {
-      selectServerProject(serverDefaultProjectKey);
+    if (!useServerProjectPicker) {
+      serverAutoSelectedForRef.current = null;
+      return;
     }
+    if (serverAutoSelectedForRef.current === selectedIntegration) return;
+    serverAutoSelectedForRef.current = selectedIntegration;
+    const defaultIndex = serverProjectConfigs.findIndex(
+      (pc) => pc.project_key === serverDefaultProjectKey,
+    );
+    selectServerConfig(String(defaultIndex >= 0 ? defaultIndex : 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useServerProjectPicker, serverDefaultProjectKey, selectedProject]);
+  }, [useServerProjectPicker, selectedIntegration, serverDefaultProjectKey]);
 
   useMountEffect(() => {
     let active = true;
@@ -349,6 +380,7 @@ const SendToJiraModalContent = ({
       projectKey: data.project,
       issueType: data.issueType,
       dispatchMode: data.dispatchMode,
+      extraFields: useServerProjectPicker ? serverExtraFields : undefined,
     }).catch(() => {
       toast({
         variant: "destructive",
@@ -449,41 +481,32 @@ const SendToJiraModalContent = ({
           {!isFetchingIntegrations &&
             selectedIntegration &&
             useServerProjectPicker && (
-              <FormField
-                control={form.control}
-                name="project"
-                render={({ field }) => (
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="jira-server-project-select"
-                      className="text-text-neutral-secondary text-xs font-light tracking-tight"
-                    >
-                      Jira Project
-                    </label>
-                    <EnhancedMultiSelect
-                      id="jira-server-project-select"
-                      options={serverProjectConfigs.map((pc) => ({
-                        value: pc.project_key,
-                        label: projects[pc.project_key]
-                          ? `${pc.project_key} - ${projects[pc.project_key]} (${pc.issue_type})`
-                          : `${pc.project_key} (${pc.issue_type})`,
-                      }))}
-                      onValueChange={(values) =>
-                        selectServerProject(values.at(-1) ?? "")
-                      }
-                      defaultValue={field.value ? [field.value] : []}
-                      placeholder="Select a project"
-                      searchable
-                      emptyIndicator="No projects configured."
-                      hideSelectAll
-                      maxCount={1}
-                      closeOnSelect
-                      resetOnDefaultValueChange
-                    />
-                    <FormMessage className="text-text-error text-xs" />
-                  </div>
-                )}
-              />
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="jira-server-project-select"
+                  className="text-text-neutral-secondary text-xs font-light tracking-tight"
+                >
+                  Jira Project
+                </label>
+                <EnhancedMultiSelect
+                  id="jira-server-project-select"
+                  options={serverProjectConfigs.map((pc, index) => ({
+                    value: String(index),
+                    label: serverConfigLabel(pc),
+                  }))}
+                  onValueChange={(values) =>
+                    selectServerConfig(values.at(-1) ?? "")
+                  }
+                  defaultValue={serverConfigIndex ? [serverConfigIndex] : []}
+                  placeholder="Select a project"
+                  searchable
+                  emptyIndicator="No projects configured."
+                  hideSelectAll
+                  maxCount={1}
+                  closeOnSelect
+                  resetOnDefaultValueChange
+                />
+              </div>
             )}
 
           {!isFetchingIntegrations &&
