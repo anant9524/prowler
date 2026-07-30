@@ -229,7 +229,10 @@ export const JiraServerIntegrationForm = ({
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
-        <div className="flex flex-col gap-4">
+        {/* Inner scroll container (not the dialog itself) so opening a project
+            dropdown — whose popover portals into the dialog — doesn't scroll
+            the whole modal to the top. */}
+        <div className="-mr-1 flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <CustomInput
             control={form.control}
             name="base_url"

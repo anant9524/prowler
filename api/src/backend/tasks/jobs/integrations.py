@@ -553,6 +553,13 @@ def _send_grouped_findings_to_jira(
                     "uid": resource.uid if resource else "",
                     "name": resource.name if resource else "",
                     "region": resource.region if resource and resource.region else "",
+                    "service": resource.service if resource else "",
+                    "type": resource.type if resource else "",
+                    "account_uid": finding_instance.scan.provider.uid,
+                    "account_alias": finding_instance.scan.provider.alias or "",
+                    # Per-resource reason — varies across resources within a
+                    # single check, unlike the check-level metadata above.
+                    "status_extended": finding_instance.status_extended or "",
                     "tags": resource_tags,
                 }
             )
@@ -643,6 +650,9 @@ def send_findings_to_jira(
             finding_ids,
         )
 
+    is_jira_server = (
+        integration.integration_type == Integration.IntegrationChoices.JIRA_SERVER
+    )
     num_tickets_created = 0
     error_messages = []
     for finding_id in finding_ids:
@@ -675,8 +685,7 @@ def send_findings_to_jira(
             remediation_code = remediation.get("code", {})
 
             try:
-                # Send the individual finding to Jira
-                result = jira_integration.send_finding(
+                send_finding_kwargs = dict(
                     check_id=finding_instance.check_id,
                     check_title=check_metadata.get("checktitle", ""),
                     severity=finding_instance.severity,
@@ -698,6 +707,26 @@ def send_findings_to_jira(
                     project_key=project_key,
                     issue_type=issue_type,
                 )
+                # Enrich the single resource with account/service/type for the
+                # Jira Server client (Jira Cloud's send_finding takes only the
+                # scalar resource args, so leave its call unchanged).
+                if is_jira_server:
+                    send_finding_kwargs["resources"] = [
+                        {
+                            "uid": resource_uid,
+                            "name": resource_name,
+                            "region": region,
+                            "service": resource.service if resource else "",
+                            "type": resource.type if resource else "",
+                            "account_uid": finding_instance.scan.provider.uid,
+                            "account_alias": finding_instance.scan.provider.alias
+                            or "",
+                            "status_extended": finding_instance.status_extended or "",
+                            "tags": resource_tags,
+                        }
+                    ]
+                # Send the individual finding to Jira
+                result = jira_integration.send_finding(**send_finding_kwargs)
             except JiraBaseException as error:
                 error_message = error.message or JIRA_GENERIC_SEND_ERROR
                 logger.exception(

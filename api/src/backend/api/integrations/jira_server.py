@@ -124,13 +124,17 @@ def _build_description(
     ADF) for `description` — this intentionally skips the Atlassian Document
     Format machinery the Cloud client builds, which is v3-only.
 
-    ``resources`` is a list of {uid, name, region, tags} dicts. One entry for a
-    single-finding issue, or many for a grouped (one-issue-per-check) issue.
+    ``resources`` is a list of resource-detail dicts (uid, name, region,
+    service, type, account_uid, account_alias, status_extended, tags). One
+    entry for a single-finding issue, or many for a grouped
+    (one-issue-per-check) issue. Each carries its own ``status_extended`` — the
+    specific reason that resource failed — since that varies per resource even
+    within one check.
     """
     lines = [
         f"*Check*: {check_title} ({check_id})",
         f"*Severity*: {severity}",
-        f"*Status*: {status}" + (f" - {status_extended}" if status_extended else ""),
+        f"*Status*: {status}",
         f"*Provider*: {provider}",
     ]
 
@@ -164,15 +168,41 @@ def _build_description(
         for resource in resources:
             name = resource.get("name") or ""
             uid = resource.get("uid") or ""
-            region = resource.get("region") or ""
-            label = " ".join(part for part in [name, f"({uid})" if uid else ""] if part)
-            if region:
-                label = f"{label} [{region}]" if label else f"[{region}]"
-            lines.append(f"- {label}" if label else "- (unknown resource)")
+            heading = name or uid or "(unknown resource)"
+            lines.append(f"# *{heading}*")
+            if uid and uid != name:
+                lines.append(f"** ARN/ID: {uid}")
+
+            account_uid = resource.get("account_uid") or ""
+            account_alias = resource.get("account_alias") or ""
+            if account_uid or account_alias:
+                account = " ".join(
+                    part
+                    for part in [account_alias, f"({account_uid})" if account_uid else ""]
+                    if part
+                )
+                lines.append(f"** Account: {account}")
+
+            location = " | ".join(
+                f"{label}: {value}"
+                for label, value in (
+                    ("Region", resource.get("region") or ""),
+                    ("Service", resource.get("service") or ""),
+                    ("Type", resource.get("type") or ""),
+                )
+                if value
+            )
+            if location:
+                lines.append(f"** {location}")
+
+            status_extended = resource.get("status_extended") or ""
+            if status_extended:
+                lines.append(f"** Reason: {status_extended}")
+
             tags = resource.get("tags")
             if tags:
                 lines.append(
-                    "  Tags: " + ", ".join(f"{k}={v}" for k, v in tags.items())
+                    "** Tags: " + ", ".join(f"{k}={v}" for k, v in tags.items())
                 )
 
     if compliance:
@@ -370,6 +400,7 @@ class JiraServer:
                     "uid": resource_uid,
                     "name": resource_name,
                     "region": region,
+                    "status_extended": status_extended,
                     "tags": resource_tags or {},
                 }
             ]
