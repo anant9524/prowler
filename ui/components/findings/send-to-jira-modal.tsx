@@ -157,30 +157,59 @@ const SendToJiraModalContent = ({
     (integration) => integration.attributes.connected === true,
   );
 
-  // Jira Server integrations can carry dispatch defaults (default project +
-  // issue type). When present, findings are filed with one click — no
-  // per-finding project/issue-type selection.
-  const serverDefaultProject =
-    selectedIntegrationData?.attributes.integration_type === "jira_server"
-      ? (selectedIntegrationData.attributes.configuration
-          .default_project_key ?? "")
-      : "";
-  const serverDefaultIssueType =
-    selectedIntegrationData?.attributes.integration_type === "jira_server"
-      ? (selectedIntegrationData.attributes.configuration
-          .default_issue_type ?? "")
-      : "";
-  const useServerDefaults = !!serverDefaultProject && !!serverDefaultIssueType;
+  // Jira Server integrations carry one or more configured dispatch targets
+  // (project + issue type + required fields). The user picks a target here
+  // instead of raw project/issue-type dropdowns; the default is pre-selected.
+  const serverProjectConfigs = (() => {
+    if (
+      selectedIntegrationData?.attributes.integration_type !== "jira_server"
+    ) {
+      return [] as {
+        project_key: string;
+        issue_type: string;
+      }[];
+    }
+    const config = selectedIntegrationData.attributes.configuration;
+    if (config.project_configs && config.project_configs.length > 0) {
+      return config.project_configs;
+    }
+    // Backward compatibility with the pre-multi-project single-default shape.
+    if (config.default_project_key) {
+      return [
+        {
+          project_key: config.default_project_key,
+          issue_type: config.default_issue_type || "",
+        },
+      ];
+    }
+    return [];
+  })();
+  const useServerProjectPicker = serverProjectConfigs.length > 0;
+  const serverDefaultProjectKey =
+    (selectedIntegrationData?.attributes.integration_type === "jira_server"
+      ? selectedIntegrationData.attributes.configuration.default_project_key
+      : "") ||
+    serverProjectConfigs[0]?.project_key ||
+    "";
 
+  const selectServerProject = (projectKey: string) => {
+    const config = serverProjectConfigs.find(
+      (pc) => pc.project_key === projectKey,
+    );
+    form.setValue("project", projectKey, { shouldValidate: true });
+    form.setValue("issueType", config?.issue_type ?? "", {
+      shouldValidate: true,
+    });
+  };
+
+  // Pre-select the default target whenever a Jira Server integration is chosen
+  // and nothing is selected yet.
   useEffect(() => {
-    if (useServerDefaults) {
-      form.setValue("project", serverDefaultProject, { shouldValidate: true });
-      form.setValue("issueType", serverDefaultIssueType, {
-        shouldValidate: true,
-      });
+    if (useServerProjectPicker && !selectedProject && serverDefaultProjectKey) {
+      selectServerProject(serverDefaultProjectKey);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useServerDefaults, serverDefaultProject, serverDefaultIssueType]);
+  }, [useServerProjectPicker, serverDefaultProjectKey, selectedProject]);
 
   useMountEffect(() => {
     let active = true;
@@ -417,18 +446,49 @@ const SendToJiraModalContent = ({
             />
           )}
 
-          {!isFetchingIntegrations && selectedIntegration && useServerDefaults && (
-            <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">
-              This integration files issues into{" "}
-              <span className="font-medium">{serverDefaultProject}</span> as{" "}
-              <span className="font-medium">{serverDefaultIssueType}</span>. Change
-              the defaults from the Jira Server integration settings.
-            </div>
-          )}
+          {!isFetchingIntegrations &&
+            selectedIntegration &&
+            useServerProjectPicker && (
+              <FormField
+                control={form.control}
+                name="project"
+                render={({ field }) => (
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="jira-server-project-select"
+                      className="text-text-neutral-secondary text-xs font-light tracking-tight"
+                    >
+                      Jira Project
+                    </label>
+                    <EnhancedMultiSelect
+                      id="jira-server-project-select"
+                      options={serverProjectConfigs.map((pc) => ({
+                        value: pc.project_key,
+                        label: projects[pc.project_key]
+                          ? `${pc.project_key} - ${projects[pc.project_key]} (${pc.issue_type})`
+                          : `${pc.project_key} (${pc.issue_type})`,
+                      }))}
+                      onValueChange={(values) =>
+                        selectServerProject(values.at(-1) ?? "")
+                      }
+                      defaultValue={field.value ? [field.value] : []}
+                      placeholder="Select a project"
+                      searchable
+                      emptyIndicator="No projects configured."
+                      hideSelectAll
+                      maxCount={1}
+                      closeOnSelect
+                      resetOnDefaultValueChange
+                    />
+                    <FormMessage className="text-text-error text-xs" />
+                  </div>
+                )}
+              />
+            )}
 
           {!isFetchingIntegrations &&
             selectedIntegration &&
-            !useServerDefaults &&
+            !useServerProjectPicker &&
             projectEntries.length > 0 && (
               <FormField
                 control={form.control}
@@ -465,7 +525,7 @@ const SendToJiraModalContent = ({
               />
             )}
 
-          {selectedProject && !useServerDefaults && (
+          {selectedProject && !useServerProjectPicker && (
             <FormField
               control={form.control}
               name="issueType"

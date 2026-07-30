@@ -1,10 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useFieldArray, useForm } from "react-hook-form";
 
 import { createIntegration, updateIntegration } from "@/actions/integrations";
-import { useToast } from "@/components/shadcn";
+import { Button, useToast } from "@/components/shadcn";
 import { CustomInput } from "@/components/shadcn/custom";
 import { CustomTextarea } from "@/components/shadcn/custom/custom-textarea";
 import { Form, FormField, FormMessage } from "@/components/shadcn/form";
@@ -17,6 +18,12 @@ import {
   jiraServerIntegrationFormSchema,
 } from "@/types/integrations";
 
+interface ProjectConfigFormValue {
+  project_key: string;
+  issue_type: string;
+  extra_fields_json?: string;
+}
+
 // Superset of the create/edit shapes so every field has a stable path for
 // react-hook-form; zodResolver still validates against the correct schema.
 type JiraServerFormValues = {
@@ -24,9 +31,8 @@ type JiraServerFormValues = {
   base_url?: string;
   personal_access_token?: string;
   enabled?: boolean;
+  project_configs?: ProjectConfigFormValue[];
   default_project_key?: string;
-  default_issue_type?: string;
-  extra_fields_json?: string;
 };
 
 interface JiraServerIntegrationFormProps {
@@ -34,6 +40,13 @@ interface JiraServerIntegrationFormProps {
   onSuccess: (integrationId?: string, shouldTestConnection?: boolean) => void;
   onCancel: () => void;
 }
+
+const stringifyExtraFields = (
+  extraFields: Record<string, unknown> | undefined,
+): string =>
+  extraFields && Object.keys(extraFields).length > 0
+    ? JSON.stringify(extraFields, null, 2)
+    : "";
 
 export const JiraServerIntegrationForm = ({
   integration,
@@ -51,15 +64,32 @@ export const JiraServerIntegrationForm = ({
     string[]
   >;
   const projectEntries = Object.entries(projects);
-  // Defaults can only be chosen once a successful connection test has
+  // Project configs can only be chosen once a successful connection test has
   // populated the available projects.
   const showDefaults = isEditing && projectEntries.length > 0;
 
-  const existingExtraFields = configuration?.extra_fields;
-  const existingExtraFieldsJson =
-    existingExtraFields && Object.keys(existingExtraFields).length > 0
-      ? JSON.stringify(existingExtraFields, null, 2)
-      : "";
+  // Seed the editor from saved project_configs, falling back to the legacy
+  // single-default fields so nothing configured before is lost.
+  const initialProjectConfigs: ProjectConfigFormValue[] = (() => {
+    const saved = configuration?.project_configs;
+    if (saved && saved.length > 0) {
+      return saved.map((pc) => ({
+        project_key: pc.project_key,
+        issue_type: pc.issue_type,
+        extra_fields_json: stringifyExtraFields(pc.extra_fields),
+      }));
+    }
+    if (configuration?.default_project_key) {
+      return [
+        {
+          project_key: configuration.default_project_key,
+          issue_type: configuration.default_issue_type || "",
+          extra_fields_json: stringifyExtraFields(configuration.extra_fields),
+        },
+      ];
+    }
+    return [];
+  })();
 
   const form = useForm<JiraServerFormValues>({
     resolver: zodResolver(
@@ -72,17 +102,23 @@ export const JiraServerIntegrationForm = ({
       base_url: configuration?.base_url || "",
       enabled: integration?.attributes.enabled ?? true,
       personal_access_token: "",
-      default_project_key: configuration?.default_project_key || "",
-      default_issue_type: configuration?.default_issue_type || "",
-      extra_fields_json: existingExtraFieldsJson,
+      project_configs: initialProjectConfigs,
+      default_project_key:
+        configuration?.default_project_key ||
+        initialProjectConfigs[0]?.project_key ||
+        "",
     },
   });
 
-  const isLoading = form.formState.isSubmitting;
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "project_configs",
+  });
 
-  const selectedDefaultProject = form.watch("default_project_key") || "";
-  const issueTypeOptions = (issueTypesByProject[selectedDefaultProject] ?? [])
-    .map((type) => ({ value: type, label: type }));
+  const isLoading = form.formState.isSubmitting;
+  const watchedConfigs = form.watch("project_configs") ?? [];
+  const defaultProjectKey = form.watch("default_project_key") || "";
+
   const projectOptions = projectEntries.map(([key, name]) => ({
     value: key,
     label: `${key} - ${name}`,
@@ -91,15 +127,18 @@ export const JiraServerIntegrationForm = ({
   const onSubmit = async (data: JiraServerFormValues) => {
     try {
       const formData = new FormData();
-
       formData.append("integration_type", "jira_server");
 
       const credentials: JiraServerCredentialsPayload = {};
 
       if (isEditing) {
-        if (data.base_url) credentials.base_url = data.base_url;
-        if (data.personal_access_token)
+        // Only send credentials when the PAT is actually re-entered; otherwise
+        // omit them entirely so the backend keeps the existing ones (editing
+        // dispatch targets must not require retyping the token).
+        if (data.personal_access_token) {
           credentials.personal_access_token = data.personal_access_token;
+          if (data.base_url) credentials.base_url = data.base_url;
+        }
       } else {
         credentials.base_url = data.base_url;
         credentials.personal_access_token = data.personal_access_token;
@@ -114,16 +153,27 @@ export const JiraServerIntegrationForm = ({
         formData.append("providers", JSON.stringify([]));
         formData.append("enabled", JSON.stringify(data.enabled ?? true));
       } else if (showDefaults) {
-        // Persist dispatch defaults so findings can be filed with one click.
-        const extraFields = data.extra_fields_json?.trim()
-          ? (JSON.parse(data.extra_fields_json) as Record<string, unknown>)
-          : {};
+        const projectConfigs = (data.project_configs ?? [])
+          .filter((pc) => pc.project_key && pc.issue_type)
+          .map((pc) => ({
+            project_key: pc.project_key,
+            issue_type: pc.issue_type,
+            extra_fields: pc.extra_fields_json?.trim()
+              ? (JSON.parse(pc.extra_fields_json) as Record<string, unknown>)
+              : {},
+          }));
+
+        const defaultKey =
+          data.default_project_key &&
+          projectConfigs.some((pc) => pc.project_key === data.default_project_key)
+            ? data.default_project_key
+            : projectConfigs[0]?.project_key || "";
+
         formData.append(
           "configuration",
           JSON.stringify({
-            default_project_key: data.default_project_key || "",
-            default_issue_type: data.default_issue_type || "",
-            extra_fields: extraFields,
+            project_configs: projectConfigs,
+            default_project_key: defaultKey,
           }),
         );
       }
@@ -145,9 +195,8 @@ export const JiraServerIntegrationForm = ({
         });
 
         // Re-test after a credentials change (or on create) to refresh
-        // projects/issue types; a pure defaults edit doesn't need it.
-        const credentialsChanged =
-          isCreating || !!data.personal_access_token || !!data.base_url;
+        // projects/issue types; a pure dispatch-targets edit doesn't need it.
+        const credentialsChanged = isCreating || !!data.personal_access_token;
         const integrationId =
           "integrationId" in result ? result.integrationId : integration?.id;
 
@@ -168,12 +217,7 @@ export const JiraServerIntegrationForm = ({
     }
   };
 
-  const getButtonLabel = () => {
-    if (isEditing) {
-      return "Save";
-    }
-    return "Create Integration";
-  };
+  const getButtonLabel = () => (isEditing ? "Save" : "Create Integration");
 
   return (
     <Form {...form}>
@@ -218,97 +262,162 @@ export const JiraServerIntegrationForm = ({
           {showDefaults && (
             <div className="flex flex-col gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
               <div>
-                <h4 className="text-sm font-semibold">Dispatch defaults</h4>
+                <h4 className="text-sm font-semibold">Dispatch targets</h4>
                 <p className="text-xs text-gray-500 dark:text-gray-300">
-                  Set once so findings are filed with a single click — no
-                  per-finding project or issue-type selection.
+                  Configure one or more projects (e.g. INS for Infosec, OPS for
+                  DevOps). When sending findings you pick one; the default is
+                  pre-selected.
                 </p>
               </div>
 
-              <FormField
-                control={form.control}
-                name="default_project_key"
-                render={({ field }) => (
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="jira-server-default-project"
-                      className="text-text-neutral-secondary text-xs font-light tracking-tight"
-                    >
-                      Default Project
-                    </label>
-                    <EnhancedMultiSelect
-                      id="jira-server-default-project"
-                      options={projectOptions}
-                      onValueChange={(values) => {
-                        field.onChange(values.at(-1) ?? "");
-                        form.setValue("default_issue_type", "");
-                      }}
-                      defaultValue={field.value ? [field.value] : []}
-                      placeholder="Select a default project"
-                      searchable
-                      emptyIndicator="No projects found."
-                      disabled={isLoading}
-                      hideSelectAll
-                      maxCount={1}
-                      closeOnSelect
-                      resetOnDefaultValueChange
-                    />
-                    <FormMessage className="text-text-error text-xs" />
-                  </div>
-                )}
-              />
+              {fields.map((fieldItem, index) => {
+                const rowProjectKey = watchedConfigs[index]?.project_key || "";
+                const rowIssueTypeOptions = (
+                  issueTypesByProject[rowProjectKey] ?? []
+                ).map((type) => ({ value: type, label: type }));
+                const isDefault =
+                  !!rowProjectKey && rowProjectKey === defaultProjectKey;
 
-              {selectedDefaultProject && (
-                <FormField
-                  control={form.control}
-                  name="default_issue_type"
-                  render={({ field }) => (
-                    <div className="flex flex-col gap-1.5">
-                      <label
-                        htmlFor="jira-server-default-issue-type"
-                        className="text-text-neutral-secondary text-xs font-light tracking-tight"
-                      >
-                        Default Issue Type
-                      </label>
-                      <EnhancedMultiSelect
-                        id="jira-server-default-issue-type"
-                        options={issueTypeOptions}
-                        onValueChange={(values) =>
-                          field.onChange(values.at(-1) ?? "")
-                        }
-                        defaultValue={field.value ? [field.value] : []}
-                        placeholder="Select a default issue type"
-                        searchable
-                        emptyIndicator="No issue types found."
-                        disabled={isLoading}
-                        hideSelectAll
-                        maxCount={1}
-                        closeOnSelect
-                        resetOnDefaultValueChange
-                      />
-                      <FormMessage className="text-text-error text-xs" />
+                return (
+                  <div
+                    key={fieldItem.id}
+                    className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                        Project {index + 1}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={isDefault ? "default" : "ghost"}
+                          size="sm"
+                          disabled={!rowProjectKey || isDefault}
+                          onClick={() =>
+                            form.setValue("default_project_key", rowProjectKey, {
+                              shouldValidate: true,
+                            })
+                          }
+                        >
+                          {isDefault ? "Default" : "Set as default"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Remove project"
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2Icon size={16} />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                />
-              )}
 
-              <CustomTextarea
-                control={form.control}
-                name="extra_fields_json"
-                label="Additional required fields (JSON)"
-                labelPlacement="inside"
-                placeholder={
-                  '{\n  "customfield_10111": {"value": "InfoSec"},\n  "customfield_10136": {"value": "Task"}\n}'
-                }
-                isRequired={false}
-                minRows={4}
-                description={
-                  "Merged into every created issue, in the exact shape Jira's create API expects. Use this to satisfy project-mandatory fields (assignee, Pod, Task Type, Request Type, etc.). Leave blank if the project has none."
-                }
-              />
+                    <FormField
+                      control={form.control}
+                      name={`project_configs.${index}.project_key`}
+                      render={({ field }) => (
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-text-neutral-secondary text-xs font-light tracking-tight">
+                            Project
+                          </label>
+                          <EnhancedMultiSelect
+                            options={projectOptions}
+                            onValueChange={(values) => {
+                              const nextKey = values.at(-1) ?? "";
+                              const prevKey = field.value;
+                              field.onChange(nextKey);
+                              form.setValue(
+                                `project_configs.${index}.issue_type`,
+                                "",
+                              );
+                              // Keep the default pointer in sync if this row was
+                              // the default.
+                              if (prevKey && prevKey === defaultProjectKey) {
+                                form.setValue("default_project_key", nextKey);
+                              }
+                            }}
+                            defaultValue={field.value ? [field.value] : []}
+                            placeholder="Select a project"
+                            searchable
+                            emptyIndicator="No projects found."
+                            disabled={isLoading}
+                            hideSelectAll
+                            maxCount={1}
+                            closeOnSelect
+                            resetOnDefaultValueChange
+                          />
+                          <FormMessage className="text-text-error text-xs" />
+                        </div>
+                      )}
+                    />
+
+                    {rowProjectKey && (
+                      <FormField
+                        control={form.control}
+                        name={`project_configs.${index}.issue_type`}
+                        render={({ field }) => (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-text-neutral-secondary text-xs font-light tracking-tight">
+                              Issue Type
+                            </label>
+                            <EnhancedMultiSelect
+                              options={rowIssueTypeOptions}
+                              onValueChange={(values) =>
+                                field.onChange(values.at(-1) ?? "")
+                              }
+                              defaultValue={field.value ? [field.value] : []}
+                              placeholder="Select an issue type"
+                              searchable
+                              emptyIndicator="No issue types found."
+                              disabled={isLoading}
+                              hideSelectAll
+                              maxCount={1}
+                              closeOnSelect
+                              resetOnDefaultValueChange
+                            />
+                            <FormMessage className="text-text-error text-xs" />
+                          </div>
+                        )}
+                      />
+                    )}
+
+                    <CustomTextarea
+                      control={form.control}
+                      name={`project_configs.${index}.extra_fields_json`}
+                      label="Additional required fields (JSON)"
+                      labelPlacement="inside"
+                      placeholder={
+                        '{\n  "customfield_10111": {"value": "InfoSec"},\n  "customfield_10136": {"value": "Task"}\n}'
+                      }
+                      minRows={4}
+                      description="Merged into issues filed into this project, in the exact shape Jira's create API expects. Leave blank if this project mandates no extra fields."
+                    />
+                  </div>
+                );
+              })}
+
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    append({
+                      project_key: "",
+                      issue_type: "",
+                      extra_fields_json: "",
+                    })
+                  }
+                >
+                  <PlusIcon size={16} />
+                  Add project
+                </Button>
+              </div>
             </div>
           )}
         </div>
+
         <FormButtons
           setIsOpen={() => {}}
           onCancel={onCancel}

@@ -93,8 +93,16 @@ export interface IntegrationProps {
       issue_types?: { [key: string]: string[] };
       // Jira Server specific configuration
       base_url?: string;
-      // Jira Server dispatch defaults (one-click send from Findings)
+      // Jira Server dispatch targets (one-click send from Findings). Several
+      // projects can be configured; the user picks one per batch.
+      project_configs?: Array<{
+        project_key: string;
+        issue_type: string;
+        extra_fields?: Record<string, unknown>;
+      }>;
       default_project_key?: string;
+      // Legacy single-default fields (pre multi-project), still read for
+      // backward compatibility.
       default_issue_type?: string;
       extra_fields?: Record<string, unknown>;
       [key: string]: unknown;
@@ -398,6 +406,33 @@ export const jiraServerIntegrationFormSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+const jiraServerExtraFieldsJson = z
+  .string()
+  .optional()
+  .refine(
+    (value) => {
+      if (!value || value.trim() === "") return true;
+      try {
+        const parsed = JSON.parse(value);
+        return (
+          typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        );
+      } catch {
+        return false;
+      }
+    },
+    {
+      error:
+        'Must be a valid JSON object, e.g. {"customfield_10111": {"value": "X"}}',
+    },
+  );
+
+export const jiraServerProjectConfigSchema = z.object({
+  project_key: z.string().min(1, "Select a project"),
+  issue_type: z.string().min(1, "Select an issue type"),
+  extra_fields_json: jiraServerExtraFieldsJson,
+});
+
 export const editJiraServerIntegrationFormSchema = z.object({
   integration_type: z.literal("jira_server"),
   base_url: z.url({ error: "Enter a valid URL" }).optional(),
@@ -405,28 +440,9 @@ export const editJiraServerIntegrationFormSchema = z.object({
     .string()
     .min(1, "Personal access token is required")
     .optional(),
-  // Dispatch defaults (editable once the connection has been tested)
+  // Dispatch targets (editable once the connection has been tested).
+  project_configs: z.array(jiraServerProjectConfigSchema).optional(),
   default_project_key: z.string().optional(),
-  default_issue_type: z.string().optional(),
-  extra_fields_json: z
-    .string()
-    .optional()
-    .refine(
-      (value) => {
-        if (!value || value.trim() === "") return true;
-        try {
-          const parsed = JSON.parse(value);
-          return (
-            typeof parsed === "object" &&
-            parsed !== null &&
-            !Array.isArray(parsed)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { error: "Must be a valid JSON object, e.g. {\"customfield_10111\": {\"value\": \"X\"}}" },
-    ),
 });
 
 export type CreateValues = z.infer<typeof jiraIntegrationFormSchema>;

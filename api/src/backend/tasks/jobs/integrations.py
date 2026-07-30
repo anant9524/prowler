@@ -474,6 +474,22 @@ def upload_security_hub_integration(
         return False
 
 
+def _resolve_jira_server_extra_fields(integration, project_key: str) -> dict:
+    """Return the required-fields JSON configured for ``project_key``.
+
+    Reads the per-project ``project_configs`` first; falls back to the legacy
+    single-default ``extra_fields`` (pre multi-project config) when the
+    dispatch targets the legacy default project.
+    """
+    configuration = integration.configuration or {}
+    for project_config in configuration.get("project_configs") or []:
+        if project_config.get("project_key") == project_key:
+            return project_config.get("extra_fields") or {}
+    if configuration.get("default_project_key") == project_key:
+        return configuration.get("extra_fields") or {}
+    return {}
+
+
 def _send_grouped_findings_to_jira(
     tenant_id: str,
     jira_integration,
@@ -598,6 +614,13 @@ def send_findings_to_jira(
     with rls_transaction(tenant_id):
         integration = Integration.objects.get(id=integration_id)
         jira_integration = initialize_prowler_integration(integration)
+
+    # Apply the required-fields JSON configured for the project being filed
+    # into (Jira Server can target several projects, each with its own).
+    if integration.integration_type == Integration.IntegrationChoices.JIRA_SERVER:
+        jira_integration.set_extra_fields(
+            _resolve_jira_server_extra_fields(integration, project_key)
+        )
 
     # "grouped" collapses the selection into one Jira issue per check, listing
     # every affected resource. Scoped to Jira Server so Jira Cloud keeps its

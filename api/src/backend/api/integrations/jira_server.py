@@ -206,6 +206,15 @@ class JiraServer:
         # {"assignee": {"name": "user"}, "customfield_10111": {"value": "X"}}.
         self._extra_fields = extra_fields or {}
 
+    def set_extra_fields(self, extra_fields: Optional[dict]) -> None:
+        """Replace the extra fields merged into created issues.
+
+        Used per-dispatch to apply the required-fields JSON of the specific
+        project being filed into, since a Jira Server integration can target
+        several projects, each with its own mandatory fields.
+        """
+        self._extra_fields = extra_fields or {}
+
     def _url(self, path: str) -> str:
         return urljoin(self._base_url, path.lstrip("/"))
 
